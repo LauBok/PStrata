@@ -9,7 +9,6 @@ PS <- function(S.formula, Y.formula, Y.family, data, monotonicity = "default", E
     Y = data[, obj$outcome_var],
     X = as.matrix(data[, obj$symbol_list, drop = F])
   )
-  df_X <- df$X
   stanfit <- rstan::stan("model.stan", data = df, 
       ...
   )
@@ -51,13 +50,16 @@ PS <- function(S.formula, Y.formula, Y.family, data, monotonicity = "default", E
     for (i in 1:df$N){
       causal_effect <- causal_effect + get_mean_difference_individual(i, j)
     }
-    return (causal_effect["effect", ] / causal_effect["weight", ])
+    return (c(causal_effect["weight", ], causal_effect["effect", ] / causal_effect["weight", ]))
   }
   
   causal_effects <- pbapply::pbsapply(1:ncol(posterior_samples), get_mean_difference)
   
+  param_names <- c(sapply(obj$param_list, function(x) x$name), "__lp")
+  rownames(posterior_samples) <- param_names
   
   res <- list(
+    data = df,
     stanfit = stanfit,
     PSobject = obj,
     pso_code = pso_code,
@@ -76,9 +78,35 @@ print.PSstan <- function(obj){
   rownames(mat) <- c(param_names, "__lp")
   print(mat)
   cat('\n')
+  cat("Estimated Proportion from Each Stratum:\n")
+  prop_S <- obj$causal_effect[1 : (nrow(obj$causal_effect) %/% 2), ]
+  prop_S <- apply(prop_S, 2, function(x) x / sum(x))
+  mat1 <- t(apply(prop_S, 1, function(x) c(mean(x), sd(x),
+                                                    quantile(x, c(0.025, 0.975)))))
+  colnames(mat1) <- c("mean", "sd", "lwr", "upr")
+  print(mat1)
+  
+  cat('\n')
   cat("Causal Effect of Principal Strata:\n")
-  mat2 <- t(apply(obj$causal_effect, 1, function(x) c(mean(x), sd(x),
+  causal_effect_Y <- obj$causal_effect[(1 + nrow(obj$causal_effect) %/% 2) : nrow(obj$causal_effect), ]
+  mat2 <- t(apply(causal_effect_Y, 1, function(x) c(mean(x), sd(x),
                                                       quantile(x, c(0.025, 0.975)))))
   colnames(mat2) <- c("mean", "sd", "lwr", "upr")
   print(mat2)
+}
+
+plot.PSstan <- function(obj){
+  data_raw <- data.frame(t(obj$post_samples))
+  data_long <- do.call(dplyr::bind_rows, lapply(names(data_raw), 
+                                                function(col) data.frame(
+                                                  x = density(data_raw[, col])$x, 
+                                                  y = density(data_raw[, col])$y, 
+                                                  fill = density(data_raw[, col])$x > quantile(data_raw[, col], .025) &
+                                                    density(data_raw[, col])$x < quantile(data_raw[, col], .975),
+                                                  name = col)))
+  data_long$name <- factor(data_long$name, levels = colnames(data_raw))
+  ggplot2::ggplot(data_long) + 
+    ggplot2::geom_ribbon(ggplot2::aes(x = x, ymax = y, ymin = 0), alpha = 0.9, fill = "springgreen2") + 
+    ggplot2::geom_ribbon(ggplot2::aes(x = x, ymax = y, ymin = 0), alpha = 0.9, fill = "springgreen4", data = data_long[data_long$fill, ]) +
+    ggplot2::facet_wrap(~name, scales = "free")
 }
