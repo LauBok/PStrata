@@ -18,7 +18,7 @@ df$Y[df$S == 0] <- rnorm(sum(df$S == 0), 3, 1)
 df$Y[df$S == 1] <- rnorm(sum(df$S == 1), -1 - df$Z, 2)
 
 # PS
-result <- PS(
+result <- BayesPS::PS(
   S.formula = Z + D ~ 1,
   Y.formula = Y ~ 1,
   Y.family = gaussian(),
@@ -29,10 +29,4 @@ result <- PS(
   chains = 1, warmup = 200, iter = 500
 )
 
-tmp <- PSobject(
-  S.formula = Z + D ~ 1,
-  Y.formula = Y ~ 1,
-  Y.family = gaussian(),
-  monotonicity = "strong",
-  ER = "00"
-)
+plot(result)
