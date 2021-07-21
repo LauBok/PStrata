@@ -7,7 +7,7 @@ using namespace Rcpp;
 
 // main
 int main();
-RcppExport SEXP _BayesPS_main() {
+RcppExport SEXP _PStrata_main() {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -17,11 +17,11 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_BayesPS_main", (DL_FUNC) &_BayesPS_main, 0},
+    {"_PStrata_main", (DL_FUNC) &_PStrata_main, 0},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_BayesPS(DllInfo *dll) {
+RcppExport void R_init_PStrata(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

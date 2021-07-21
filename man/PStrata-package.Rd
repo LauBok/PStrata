@@ -1,6 +1,6 @@
-\name{BayesPS-package}
-\alias{BayesPS-package}
-\alias{BayesPS}
+\name{PStrata-package}
+\alias{PStrata-package}
+\alias{PStrata}
 \docType{package}
 \title{
   A short title line describing what the package does

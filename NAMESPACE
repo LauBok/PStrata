@@ -1,4 +1,4 @@
-useDynLib(BayesPS, .registration=TRUE)
+useDynLib(PStrata, .registration=TRUE)
 importFrom(Rcpp, evalCpp)
 S3method(print, PSobject)
 S3method(print, PSstan)
