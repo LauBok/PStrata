@@ -18,7 +18,7 @@ df$Y[df$S == 0] <- rnorm(sum(df$S == 0), 3, 1)
 df$Y[df$S == 1] <- rnorm(sum(df$S == 1), -1 - df$Z, 2)
 
 # PS
-result <- BayesPS::PS(
+result <- PStrata::PStrata(
   S.formula = Z + D ~ 1,
   Y.formula = Y ~ 1,
   Y.family = gaussian(),
@@ -29,4 +29,36 @@ result <- BayesPS::PS(
   chains = 1, warmup = 200, iter = 500
 )
 
+rstan::stan(paste0("unnamed", ".stan"), data = df, 
+            chains = 1, warmup = 200, iter = 500
+)
+
+tryCatch(
+  rstan::stan_model(file = "unnamed.stan"),
+  error = function(e) 
+  {
+    print(e$message) # or whatever error handling code you want
+  },
+  message = function(e) 
+  {
+    print(e$message) # or whatever error handling code you want
+  }
+)
+
+zz <- file("test1.txt", open = "wt")
+sink(zz ,type = "output")
+sink(zz, type = "message")
+rstan::stan_model(file = "unnamed.stan")
+#and to close connections
+sink()
+sink()
+
 plot(result)
+
+tmp_obj <- PSobject_survival(
+  S.formula = Z + D ~ X1 + I(X2^2) + X3 * X4,
+  Y.formula = Y ~ W1 + W2*W3,
+  monotonicity = "strong",
+  ER = "00",
+  trunc = F
+)

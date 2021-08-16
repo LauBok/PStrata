@@ -1,21 +1,33 @@
-PS <- function(S.formula, Y.formula, Y.family, data, monotonicity = "default", ER = c(), trunc = FALSE, ...){
-  obj <- PSobject(S.formula, Y.formula, Y.family, monotonicity, ER, trunc)
-  write.pso(obj, "model.pso")
-  main()
+PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "default", ER = c(), trunc = FALSE, 
+               prior_intercept = prior_uniform(),
+               prior_coefficient = prior_normal(),
+               prior_sigma = prior_inv_gamma(),
+               prior_alpha = prior_inv_gamma(),
+               prior_lambda = prior_inv_gamma(),
+               prior_theta = prior_normal(),
+               model_name = "unnamed", ...){
+  obj <- PSObject(
+    S.formula, Y.formula, Y.family, monotonicity, ER,
+    prior_intercept, prior_coefficient, prior_sigma,
+    prior_alpha, prior_lambda, prior_theta
+  )
+  write.pso(obj, paste0(model_name, ".pso"))
+  to_stan(model_name)
   df <- list(
     N = nrow(data), 
-    Z = data[, obj$treatment_var],
-    D = data[, obj$intervention_var],
-    Y = data[, obj$outcome_var],
-    X = as.matrix(data[, obj$symbol_list, drop = F])
+    Z = dplyr::pull(data, obj$variables$treatment),
+    D = dplyr::pull(data, obj$variables$intervention),
+    Y = dplyr::pull(data, obj$variables$outcome),
+    X = dplyr::select(data, as.character(obj$symbol_list))
   )
-  stanfit <- rstan::stan("model.stan", data = df, 
-      ...
+  if (!is.null(obj$variables$censor))
+    df$C = dplyr::pull(data, obj$variables$censor)
+  stanfit <- rstan::stan(paste0(model_name, ".stan"), data = df, 
+                         ...
   )
-  pso_code <- paste(readLines('model.pso'), collapse = '\n')
-  stan_code <- paste(readLines('model.stan'), collapse = '\n')
-  #file.remove('model.pso')
-  #file.remove('model.stan')
+  pso_code <- paste(readLines(paste0(model_name, '.pso')), collapse = '\n')
+  stan_code <- paste(readLines(paste0(model_name, '.stan')), collapse = '\n')
+  return (stanfit)
   
   posterior_samples <- do.call(rbind, rstan::extract(stanfit))
   get_mean_difference_individual <- function(i, j){
@@ -67,11 +79,11 @@ PS <- function(S.formula, Y.formula, Y.family, data, monotonicity = "default", E
     post_samples = posterior_samples,
     causal_effect = causal_effects
   )
-  class(res) <- "PSstan"
-  return (res)
+  class(res) <- "PStrata"
+  #return (res)
 }
 
-print.PSstan <- function(obj){
+print_future.PStrata <- function(obj){
   cat("Posterior estimate of the parameters:\n")
   mat <- rstan::summary(obj$stanfit)$summary
   param_names <- sapply(obj$PSobject$param_list, function(x) x$name)
@@ -82,7 +94,7 @@ print.PSstan <- function(obj){
   prop_S <- obj$causal_effect[1 : (nrow(obj$causal_effect) %/% 2), ]
   prop_S <- apply(prop_S, 2, function(x) x / sum(x))
   mat1 <- t(apply(prop_S, 1, function(x) c(mean(x), sd(x),
-                                                    quantile(x, c(0.025, 0.975)))))
+                                           quantile(x, c(0.025, 0.975)))))
   colnames(mat1) <- c("mean", "sd", "lwr", "upr")
   print(mat1)
   
@@ -90,12 +102,12 @@ print.PSstan <- function(obj){
   cat("Causal Effect of Principal Strata:\n")
   causal_effect_Y <- obj$causal_effect[(1 + nrow(obj$causal_effect) %/% 2) : nrow(obj$causal_effect), ]
   mat2 <- t(apply(causal_effect_Y, 1, function(x) c(mean(x), sd(x),
-                                                      quantile(x, c(0.025, 0.975)))))
+                                                    quantile(x, c(0.025, 0.975)))))
   colnames(mat2) <- c("mean", "sd", "lwr", "upr")
   print(mat2)
 }
 
-plot.PSstan <- function(obj){
+plot_future.PStrata <- function(obj){
   data_raw <- data.frame(t(obj$post_samples))
   data_long <- do.call(dplyr::bind_rows, lapply(names(data_raw), 
                                                 function(col) data.frame(

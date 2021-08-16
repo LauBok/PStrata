@@ -5,19 +5,25 @@
 
 using namespace Rcpp;
 
-// main
-int main();
-RcppExport SEXP _PStrata_main() {
+#ifdef RCPP_USE_GLOBAL_ROSTREAM
+Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
+#endif
+
+// to_stan
+int to_stan(const std::string& name);
+RcppExport SEXP _PStrata_to_stan(SEXP nameSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    rcpp_result_gen = Rcpp::wrap(main());
+    Rcpp::traits::input_parameter< const std::string& >::type name(nameSEXP);
+    rcpp_result_gen = Rcpp::wrap(to_stan(name));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_PStrata_main", (DL_FUNC) &_PStrata_main, 0},
+    {"_PStrata_to_stan", (DL_FUNC) &_PStrata_to_stan, 1},
     {NULL, NULL, 0}
 };
 

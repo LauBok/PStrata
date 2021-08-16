@@ -1,243 +1,76 @@
-PSobject <- function(S.formula, Y.formula, Y.family, monotonicity = "default", ER = c(), trunc = FALSE){
-  symbol_list <- c()
-  param_list <- list()
-  S_list <- list()
-  Y_list <- list()
-  strata <- c()
-  .count <- 1
+PSObject <- function(
+  S.model, Y.model, Y.family, monotonicity, ER,
+  prior_intercept = prior_uniform(),
+  prior_coefficient = prior_normal(),
+  prior_sigma = prior_inv_gamma(),
+  prior_alpha = prior_inv_gamma(),
+  prior_lambda = prior_inv_gamma(),
+  prior_theta = prior_normal()
+) {
   
-  if (monotonicity == "Default" || monotonicity == "default")
+  get_list_vars <- function(S.model, Y.model){
+    symbol_S <- manipulate_formula(S.model)$symbols$RHS
+    symbol_Y <- manipulate_formula(Y.model)$symbols$RHS
+    return (unique(c(symbol_S, symbol_Y)))
+  }
+  
+  # covariates
+  symbol_list <- get_list_vars(S.model, Y.model)
+  
+  # analyze monotonicity
+  if (monotonicity == "default")
     strata <- c("00", "01", "11")
-  else if (monotonicity == "None" || monotonicity == "none")
+  else if (monotonicity == "none")
     strata <- c("00", "01", "10", "11")
-  else if (monotonicity == "Strong" || monotonicity == "strong")
+  else if (monotonicity == "strong")
     strata <- c("00", "01")
+  
+  # create model for each stratum
+  parameter_list <- list()
+  stratum_model_list <- list()
+  outcome_model_list <- list()
+  start_num <- 1
+  
+  # models for stratum
+  S_model_info <- manipulate_formula(S.model)
+  treatment.var <- S_model_info$symbols$LHS[[1]]
+  intervention.var <- S_model_info$symbols$LHS[[2]]
+  
+  for (stratum in strata) {
+    if (stratum == strata[1]){
+      stratum_model_list[[stratum]] <- 0
+    }
+    else{
+      new_param <- S_model_info$parameters
+      for (i in 1:length(new_param)){
+        new_param[[i]]$name <- paste(
+          'S', stratum, new_param[[i]]$name, sep = '_'
+        )
+      }
+      parameter_list <- c(parameter_list, new_param)
+      stratum_model_list[[stratum]] <- S_model_info$evaluate(start_num)
+      start_num <- start_num + S_model_info$num_of_parameters
+    }
+  }
+  
+  #models for outcome
+  Y_model_info <- manipulate_formula(Y.model)
+  outcome.var <- Y_model_info$symbols$LHS[[1]]
+  if (F) # to change
+    censor.var <- Y_model_info$symbols$LHS[[2]]
   else
-    stop("monotonicity option must be one of default, none and strong.")
+    censor.var <- NULL
   
-  if (trunc){
-    if ("00" %in% ER || "01" %in% ER || "10" %in% ER)
-      stop("Exclusion restriction can only hold for stratum 11 under truncation.")
+  for (stratum in strata) {
+    model <- model_template(
+      Y.model, Y.family, stratum %in% ER, stratum
+    )(start_num)
+    parameter_list <- c(parameter_list, model$param_list)
+    outcome_model_list[[stratum]] <- model$model_list
+    start_num <- model$start
   }
   
-  for (stratum in ER){
-    if (!(stratum %in% strata))
-      warning(paste0("Stratum ", stratum, " does not exist by monotonicity settings. ER is ignored for this stratum."))
-  }
-  
-  .getRHS <- function(formula){
-    return (formula[[length(formula)]])
-  }
-  
-  .getLHS <- function(formula){
-    stopifnot(length(formula) == 3)
-    return (formula[[2]])
-  }
-  
-  .extractRHS <- function(formula){
-    update(formula, 1 ~ .)
-  }
-  
-  .extractLHS <- function(formula){
-    update(formula, . ~ 1)
-  }
-  
-  LHS_terms <- function(formula){
-    all.vars(attr(terms(.extractLHS(formula)), "variables"))
-  }
-  
-  ## deal with outcome, treatment, intervention varnames.
-  treatment_var <- LHS_terms(S.formula)[1]
-  intervention_var <- LHS_terms(S.formula)[2]
-  outcome_var <- LHS_terms(Y.formula)
-  
-  ## deal with S.formula
-  
-  S.RHS <- .extractRHS(S.formula)
-  for (stratum in strata){
-    .tmp <- expand_formula(S.RHS, symbol_list, .count)
-    tmp <- .tmp$formula
-    symbol_list <- .tmp$symbol_list
-    S_list[[stratum]] <- list(
-      name = as.character(tmp),
-      fun = get_mean(as.character(tmp))
-    )
-    if (attr(tmp, "intercept")){
-      param_list[[.count]] <- list(
-        name = gen_name('S', stratum, 'Intercept'),
-        model = "normal", 
-        args = c("mean" = 0, "sd" = 100))
-      .count <- .count + 1
-    }
-    if (attr(tmp, "count") != 0){
-      for (i in .count:(.count + attr(tmp, "count") - 1)){
-        param_list[[i]] <- list(
-          name = gen_name('S', stratum, 'Coef', attr(tmp, "term.names")[i + 1 - .count]),
-          model = "normal", 
-          args = c("mean" = 0, "sd" = 10))
-      }
-      .count <- .count + attr(tmp, "count")
-    }
-  }
-  
-  Y.RHS <- .extractRHS(Y.formula)
-  for (stratum in strata){
-    for (z in 0:1){
-      if (trunc){
-        if (substring(stratum, z + 1, z + 1) == '0'){
-          Y_list[[stratum]][[1 + z]] <- list(
-            name = "0",
-            fun = function(x, p) NA,
-            invlink = function(x) x
-          )
-          next
-        }
-      }
-      .tmp <- expand_formula(Y.RHS, symbol_list, .count)
-      tmp <- .tmp$formula
-      symbol_list <- .tmp$symbol_list
-      eta <- as.character(tmp)
-      if (attr(tmp, "intercept")){
-        param_list[[.count]] <- list(
-          name = gen_name('Y', c(stratum, z), 'Intercept'),
-          model = "normal", 
-          args = c("mean" = 0, "sd" = 100))
-        .count <- .count + 1
-      }
-      if (attr(tmp, "count") != 0){
-        for (i in .count:(.count + attr(tmp, "count") - 1)){
-          param_list[[i]] <- list(
-            name = gen_name('Y', c(stratum, z), 'Coef', attr(tmp, "term.names")[i + 1 - .count]),
-            model = "normal", 
-            args = c("mean" = 0, "sd" = 10))
-        }
-        .count <- .count + attr(tmp, "count")
-      }
-      if (Y.family$family == "gaussian") {
-        sigma <- paste0('@', .count)
-        param_list[[.count]] <- list(
-          name = gen_name('Y', c(stratum, z), 'Sigma'),
-          model = "inv_gamma", args = c("alpha" = 0.1, "beta" = 0.1))
-        .count <- .count + 1
-        if (Y.family$link == "identity") {
-          str <- eta
-        }
-        else if (Y.family$link == "log"){
-          str <- paste0("exp(", eta, ")")
-        }
-        else if (Y.family$link == "inverse"){
-          str <- paste0("1 / (", eta, ")")
-        }
-        else
-          stop("Link function must be one of identity, log and inverse.")
-        Y_list[[stratum]][[1 + z]] <- list(
-          name = paste0("normal_lpdf(. | ", str, ", ", sigma, ")"),
-          fun = get_mean(eta),
-          invlink = Y.family$linkinv
-        )
-      }
-      else if (Y.family$family == "binomial"){
-        if (Y.family$link == "logit") {
-          str <- paste0("inv_logit(", eta, ")")
-        }
-        else if (Y.family$link == "probit"){
-          str <- paste0("inv_Phi(", eta, ")")
-        }
-        else if (Y.family$link == "cauchit"){
-          str <- paste0("atan(", eta, ") / pi() + .5")
-        }
-        else if (Y.family$link == "log"){
-          str <- paste0("exp(", eta, ")")
-        }
-        else if (Y.family$link == "cloglog"){
-          str <- paste0("inv_cloglog(", eta, ")")
-        }
-        else
-          stop("Link function must be one of logit, probit, cauchit, log and cloglog.")
-        Y_list[[stratum]][[1 + z]] <- list(
-          name = paste0("bernoulli_lpmf(. | ", str, ")"),
-          fun = get_mean(eta),
-          invlink = Y.family$linkinv
-        )
-      }
-      else if (Y.family$family == "Gamma"){
-        shape <- paste0('@', .count)
-        param_list[[.count]] <- list(
-          name = gen_name('Y', c(stratum, z), 'Alpha'),
-          model = "inv_gamma", 
-          args = c("alpha" = 0.1, "beta" = 0.1))
-        .count <- .count + 1
-        if (Y.family$link == "identity") {
-          str <- paste0(shape, " / (", eta, ")")
-        }
-        else if (Y.family$link == "log"){
-          str <- paste0(shape, " / exp(", eta, ")")
-        }
-        else if (Y.family$link == "inverse"){
-          str <- paste0(shape, " * (", eta, ")")
-        }
-        else
-          stop("Link function must be one of identity, log and inverse.")
-        Y_list[[stratum]][[1 + z]] <- list(
-          name = paste0("gamma_lpdf(. | ", shape, ", ", str, ")"),
-          fun = get_mean(eta),
-          invlink = Y.family$linkinv
-        )
-      }
-      else if (Y.family$family == "poisson"){
-        if (Y.family$link == "identity") {
-          str <- eta
-        }
-        else if (Y.family$link == "log"){
-          str <- paste0("exp(", eta, ")")
-        }
-        else if (Y.family$link == "sqrt"){
-          str <- paste0("(", eta, ")^2")
-        }
-        else
-          stop("Link function must be one of identity, log and sqrt.")
-        Y_list[[stratum]][[1 + z]] <- list(
-          name = paste0("poisson_lpmf(. | ", str, ")"),
-          fun = get_mean(eta),
-          invlink = Y.family$linkinv
-        )
-      }
-      else if (Y.family$family == "inverse.gaussian"){
-        lambda <- paste0('@', .count)
-        param_list[[.count]] <- list(
-          name = gen_name('Y', c(stratum, z), 'Lambda'),
-          model = "inv_gamma", 
-          args = c("alpha" = 0.1, "beta" = 0.1))
-        .count <- .count + 1
-        if (Y.family$link == "identity") {
-          str <- eta
-        }
-        else if (Y.family$link == "log"){
-          str <- paste0("exp(", eta, ")")
-        }
-        else if (Y.family$link == "inverse"){
-          str <- paste0("1 / (", eta, ")")
-        }
-        else if (Y.family$link == "1/mu^2"){
-          str <- paste0("1 / (", eta, ")^2")
-        }
-        else
-          stop("Link function must be one of identity, log, inverse and 1/mu^2.")
-        Y_list[[stratum]][[1 + z]] <- list(
-          name = paste0("inv_gaussian_lpdf(. | ", str, ", ", lambda, ")"),
-          fun = get_mean(eta),
-          invlink = Y.family$linkinv
-        )
-      }
-      else
-        stop("'Y.family' must be one of gaussian, binomial, Gamma, poisson and inverse.gaussian.")
-      if (stratum %in% ER){
-        Y_list[[stratum]][[2]] <- Y_list[[stratum]][[1]]
-        break
-      }
-    }
-  }
-  
+  # outcome type
   if (Y.family$family %in% c("gaussian"))
     Y_type = "continuous"
   else if (Y.family$family %in% c("binomial"))
@@ -246,24 +79,159 @@ PSobject <- function(S.formula, Y.formula, Y.family, monotonicity = "default", E
     Y_type = "positive"
   else if (Y.family$family %in% c("poission"))
     Y_type = "count"
+  else if (Y.family$family %in% c("survival"))
+    Y_type = "survival"
   
-  result <- list(
-    outcome_var = outcome_var,
-    treatment_var = treatment_var,
-    intervention_var = intervention_var,
-    outcome_type = Y_type,
+  for (i in 1:length(parameter_list)) {
+    prior_type <- parameter_list[[i]]$prior_type
+    prior_dist <- eval(str2lang(prior_type))
+    parameter_list[[i]]$prior_dist <- prior_dist
+  }
+  
+  return (structure(list(
+    variables = list(
+      treatment = treatment.var,
+      intervention = intervention.var,
+      outcome = outcome.var,
+      censor = censor.var
+    ),
     symbol_list = symbol_list,
-    param_list = param_list,
-    S_list = S_list,
-    Y_list = Y_list,
-    strata = strata,
-    ER = ER
-  )
-  class(result) <- "PSobject"
-  return (result)
+    parameter_list = parameter_list,
+    stratum_model_list = stratum_model_list,
+    outcome_model_list = outcome_model_list,
+    outcome_type = Y_type,
+    strata = strata
+  ), class = "PSObject"))
 }
 
-print.PSobject <- function(obj){
+write.pso <- function(obj, filename = NULL){
+  substitute_par <- function(call_object, env = c()){
+    return (eval(substitute(
+      substitute(y, env), 
+      list(y = call_object))
+    ))
+  }
+  
+  unname_symbol <- function(call_object, env_vars) {
+    return (substitute_par(call_object, env_vars))
+  }
+  
+  reformat <- function(call_object){
+    args <- sapply(call_object[-1], deparse, backtick = F)
+    str_args <- paste0(args, collapse = ', ')
+    strings <- c(
+      as.character(call_object[[1]]),
+      '(. | ',
+      str_args,
+      ')'
+    )
+    return (paste0(strings, collapse = ''))
+  }
+  
+  if (!is.null(filename))
+    fileConn <- file(filename)
+  
+  env <- lapply(
+    1:length(obj$symbol_list), 
+    function(i) str2lang(paste('`$', i, '`', sep = ''))
+  )
+  names(env) <- obj$symbol_list
+  
+  indent <- function(str, indent) {
+    return (paste0(paste0(rep(' ', indent), collapse = ''), str))
+  }
+  lines <- c()
+  # Y type
+  lines <- c(lines, paste0("Y: ", obj$outcome_type))
+  # S info
+  lines <- c(lines, paste0("S: ", paste0(strtoi(obj$strata, base = 2), collapse = ' ')))
+  # Covariates
+  lines <- c(lines, "covariate {")
+  if (length(obj$symbol_list) > 0){
+    for (i in 1:length(obj$symbol_list)){
+      lines <- c(
+        lines, 
+        indent(paste0('$', i, ': ', obj$symbol_list[i]), indent = 4)
+      )
+    }
+  }
+  lines <- c(lines, "}")
+  # Parameters
+  lines <- c(lines, "parameter {")
+  for (i in 1:length(obj$parameter_list)){
+    lines <- c(
+      lines, 
+      indent(
+        paste0('@', i, ': <', 
+               obj$parameter_list[[i]]$type, '> ',
+               obj$parameter_list[[i]]$name
+        ), indent = 4
+      )
+    )
+  }
+  lines <- c(lines, "}")
+  # Prior Distribution
+  lines <- c(lines, "prior {")
+  for (i in 1:length(obj$parameter_list)){
+    call <- obj$parameter_list[[i]]$prior_dist$call
+    if (is.null(call))
+      tmp_str <- "uniform()"
+    else
+      tmp_str <- deparse(call)
+    lines <- c(
+      lines, 
+      indent(paste0('@', i, ' ~ ', tmp_str), indent = 4)
+    )
+  }
+  lines <- c(lines, "}")
+  # Strata models
+  lines <- c(lines, "strata {")
+  for (i in 1:length(obj$stratum_model_list)){
+    lines <- c(
+      lines, 
+      indent(
+        paste0(
+          strtoi(names(obj$stratum_model_list)[i], 2), 
+          ": ", 
+          deparse(
+            unname_symbol(obj$stratum_model_list[[i]], env),
+            backtick = F
+          )
+        ), indent = 4
+      )
+    )
+  }
+  lines <- c(lines, "}")
+  # Outcome models
+  lines <- c(lines, "outcome {")
+  for (i in 1:length(obj$outcome_model_list)){
+    for (j in 0:1){
+      lines <- c(
+        lines, 
+        indent(
+          paste0(
+            strtoi(names(obj$outcome_model)[i], 2), 
+            ", ", j,  ": ", 
+            reformat(
+              unname_symbol(
+                obj$outcome_model[[i]][[j + 1]]$model, env
+              )
+            )
+          ), indent = 4
+        )
+      )
+    }
+  }
+  lines <- c(lines, "}")
+  
+  if (!is.null(filename)) {
+    writeLines(lines, fileConn)
+    close(fileConn)
+  }
+  return (lines)
+}
+
+print_future.PSObject <- function(obj){
   width = 80
   cat(nice.print("Principle Stratification Object", width, 3, '*'))
   cat(nice.print(paste0("Treatment : ", obj$treatment_var, '   ', 
@@ -423,4 +391,3 @@ print.PSobject <- function(obj){
   }
   cat('\n')
 }
-

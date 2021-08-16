@@ -9,7 +9,7 @@ using namespace Rcpp;
 // [[Rcpp::plugins(cpp17)]]
 
 template <class Iterable, class func>
-std::string concat(Iterable container, std::string delim, func f){
+std::string concat(Iterable container, const std::string& delim, func f){
   std::string res;
   for (auto p = container.begin(); p != container.end(); ++p){
     if (p != container.begin())
@@ -20,7 +20,6 @@ std::string concat(Iterable container, std::string delim, func f){
 }
 
 std::string replace(const std::string& text, bool single = false){
-  single = false;
   std::string res;
   std::string tmp;
   char cur_state = 0;
@@ -30,6 +29,10 @@ std::string replace(const std::string& text, bool single = false){
       replaceable = false;
     if (c == '.' && replaceable){
       res += "Y[n]";
+      continue;
+    }
+    if (c == '.'){
+      res += "C[n]";
       continue;
     }
     if (cur_state != 0){
@@ -74,9 +77,10 @@ struct Object{
   std::vector<std::string> P_type;
   std::vector<std::string> P_model;
   std::vector<int> S;
-  std::map<std::pair<int, int>, std::vector<int>> _ZDS;
+  std::map<std::pair<int, int>, std::vector<int>> ZDS;
   std::map<int, std::string> S_model;
   std::map<std::pair<int, int>, std::string> Y_model;
+  static std::string to_string_functions() ;
   std::string to_string_data() const;
   std::string to_string_parameters() const;
   std::string _to_string_prior() const;
@@ -85,26 +89,33 @@ struct Object{
   std::string _to_string_latent() const;
   std::string to_string() const;
   Object ();
-  void write_to_file(std::string filename) const;
+  void write_to_file(const std::string& filename) const;
 };
+
+Object::Object() {
+  for (int z : {0, 1})
+    for (int d: {0, 1})
+      ZDS[std::make_pair(z, d)] = std::vector<int>();
+}
 
 std::string Object::to_string_data() const {
   std::vector<std::string> tmp;
   tmp.emplace_back("int<lower=1> N;");
   tmp.emplace_back("int<lower=0, upper=1> Z[N];");
   tmp.emplace_back("int<lower=0, upper=1> D[N];");
-  if (X_name.size() >= 1)
+  if (this->Y_type == "survival")
+    tmp.emplace_back("int<lower=0, upper=1> C[N];");
+  if (X_name.size() > 1)
     tmp.push_back(
       std::string("real X[N, ") +
         std::to_string(this->X_name.size()) +
         "];");
   else if (X_name.size() == 1)
-    tmp.push_back(
-      std::string("real X[N];"));
+    tmp.emplace_back("real X[N];");
   std::string t;
   if (this->Y_type == "continuous")
     t = "real";
-  else if (this->Y_type == "positive")
+  else if (this->Y_type == "positive" || this->Y_type == "survival")
     t = "real<lower=0>";
   else if (this->Y_type == "binary")
     t = "int<lower=0, upper=1>";
@@ -119,17 +130,30 @@ std::string Object::to_string_data() const {
   return res;
 }
 
-Object::Object() {
-  for (int z : {0, 1})
-    for (int d: {0, 1})
-      _ZDS[std::make_pair(z, d)] = std::vector<int>();
+std::string Object::to_string_functions() {
+  std::string res(
+      ""
+      "functions {\n"
+      "    real inv_gaussian_lpdf(real x, real mu, real lambda) {\n"
+      "        real constant = log(lambda) / 2.0 - log(2 * pi()) / 2.0;\n"
+      "        real kernel = - 1.5 * log(x) - lambda * pow(x - mu, 2) / (2 * x * pow(mu, 2));\n"
+      "        return constant + kernel;\n"
+      "    }\n"
+      "    real survival_lpdf(real x, real mu, real theta1, real theta2, int censor) {\n"
+      "        real term1 = theta1 + theta2 + mu + (exp(theta1) - 1) * log(x);\n"
+      "        real term2 = exp(theta2 + mu) * pow(x, exp(theta1));\n"
+      "        return (1 - censor) * term1 - term2;\n"
+      "    }\n"
+      "}\n"
+  );
+  return res;
 }
 
 std::string Object::to_string_parameters() const {
   std::vector<std::string> tmp;
-  for (int i = 0; i < this->P_name.size(); ++i){
+  for (unsigned int i = 0; i < this->P_name.size(); ++i){
     std::string t;
-    if (this->P_type[i] == "continuous")
+    if (this->P_type[i] == "real")
       t = "real";
     else if (this->P_type[i] == "positive")
       t = "real<lower=0>";
@@ -145,7 +169,9 @@ std::string Object::to_string_parameters() const {
 
 std::string Object::_to_string_prior() const {
   std::string res;
-  for (int i = 0; i < this->P_name.size(); ++i){
+  for (unsigned int i = 0; i < this->P_name.size(); ++i){
+    if (this->P_model[i] == "uniform()")
+      continue;
     res += std::string(4, ' ') +
       "par_" + std::to_string(i + 1) + " ~ " +
       this->P_model[i] + ";\n";
@@ -156,14 +182,14 @@ std::string Object::_to_string_prior() const {
 std::string Object::_to_string_S() const {
   std::string res;
   for (auto& s: this->S_model){
-    res += std::string(4, ' ') +
+    res += std::string(8, ' ') +
       "real log_prob_" + std::to_string(s.first) + " = " +
       s.second + ";\n";
   }
-  res += std::string(4, ' ') +
+  res += std::string(8, ' ') +
     "real log_prob_all = log_sum_exp({" +
     concat(this->S_model, ", ",
-           [](std::pair<int, std::string> p){
+           [](const std::pair<int, std::string>& p){
              return std::string("log_prob_") + std::to_string(p.first);
            }) +
              "});\n";
@@ -178,14 +204,15 @@ std::string Object::_to_string_len() const {
   for (int z: {0, 1}){
     for (int d: {0, 1}){
       std::vector<int> tmp;
-      if (this->_ZDS.find(std::make_pair(z, d)) != this->_ZDS.end())
-        tmp = this->_ZDS.at(std::make_pair(z, d));
+      if (this->ZDS.find(std::make_pair(z, d)) != this->ZDS.end())
+        tmp = this->ZDS.at(std::make_pair(z, d));
       if (!tmp.empty()){
         res += blank + (_else ? "else if ": "if ") + "(" +
           "Z[n] == " + std::to_string(z) + " && " +
           "D[n] == " + std::to_string(d) + ")\n";
         res += blank + std::string(4, ' ') +
           "length = " + std::to_string(tmp.size()) + ";\n";
+        _else = true;
       }
     }
   }
@@ -201,8 +228,8 @@ std::string Object::_to_string_latent() const {
   for (int z: {0, 1}){
     for (int d: {0, 1}){
       std::vector<int> tmp;
-      if (this->_ZDS.find(std::make_pair(z,d)) != this->_ZDS.end())
-        tmp = this->_ZDS.at(std::make_pair(z, d));
+      if (this->ZDS.find(std::make_pair(z,d)) != this->ZDS.end())
+        tmp = this->ZDS.at(std::make_pair(z, d));
       if (!tmp.empty()){
         res += blank + (_else ? "else if ": "if ") + "(" +
           "Z[n] == " + std::to_string(z) + " && " +
@@ -210,7 +237,7 @@ std::string Object::_to_string_latent() const {
         res += blank + std::string(4, ' ') + "// strata: " +
           concat(tmp, ", ", [](int c) {return std::to_string(c);}) +
           "\n";
-        for (int i = 0; i < tmp.size(); ++i){
+        for (unsigned int i = 0; i < tmp.size(); ++i){
           res += blank + std::string(4, ' ') +
             "log_l[" + std::to_string(i + 1) + "] = " +
             "log_prob_" + std::to_string(tmp[i]) + " + " +
@@ -218,6 +245,7 @@ std::string Object::_to_string_latent() const {
         }
         res += blank + "}\n";
       }
+      _else = true;
     }
   }
   res += blank + "target += log_sum_exp(log_l) - log_prob_all;\n";
@@ -227,6 +255,7 @@ std::string Object::_to_string_latent() const {
 
 std::string Object::to_string() const {
   std::string res;
+  res += this->to_string_functions();
   res += this->to_string_data();
   res += this->to_string_parameters();
   res += "model {\n";
@@ -240,13 +269,13 @@ std::string Object::to_string() const {
   return res;
 }
 
-void Object::write_to_file(std::string filename) const {
+void Object::write_to_file(const std::string& filename) const {
   std::ofstream file(filename);
   file << this->to_string();
   file.close();
 }
 
-std::vector<std::string> readfile(std::string filename){
+std::vector<std::string> readfile(const std::string& filename){
   std::vector<std::string> buffer;
   std::ifstream file(filename);
   if (file.is_open()) {
@@ -270,10 +299,10 @@ std::vector<std::string> split(const std::string& str, char delim){
       ++r;
     }
     tokens.emplace_back(l, r);
-    if (*r == delim)
-      l = ++r;
-    else
+    if (r == str.end())
       return tokens;
+    else
+      l = ++r;
   }
 }
 
@@ -335,11 +364,11 @@ Object parse(const std::vector<std::string>& buffer){
     } else if (it->rfind("S:", 0) == 0) {
       // strata
       auto tokens = split(split(*it, ':')[1], ' ');
-      for (auto token : tokens) {
+      for (const auto& token : tokens) {
         int num = std::stoi(token);
         obj.S.push_back(num);
         for (int z : {0, 1}){
-          obj._ZDS[std::make_pair(z, z == 0? num >> 1: num & 1)].push_back(num);
+          obj.ZDS[std::make_pair(z, z == 0? num >> 1: num & 1)].push_back(num);
         }
       }
     } else if (it->rfind("covariate", 0) == 0) {
@@ -359,10 +388,10 @@ Object parse(const std::vector<std::string>& buffer){
 }
 
 // [[Rcpp::export]]
-int main() {
-  std::string filename("model.pso");
+int to_stan(const std::string& name) {
+  std::string filename(name + ".pso");
   auto buffer = readfile(filename);
   auto obj = parse(buffer);
-  obj.write_to_file("model.stan");
+  obj.write_to_file(name + ".stan");
   return 0;
 }
