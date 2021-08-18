@@ -16,6 +16,41 @@ PSObject <- function(
   
   # covariates
   symbol_list <- get_list_vars(S.model, Y.model)
+  env <- lapply(
+    1:length(symbol_list), 
+    function(i) str2lang(paste('`$', i, '`', sep = ''))
+  )
+  names(env) <- symbol_list
+  
+  substitute_par <- function(call_object, env = c()){
+    return (eval(substitute(
+      substitute(y, env), 
+      list(y = call_object))
+    ))
+  }
+  
+  unname_symbol <- function(call_object, env_vars) {
+    return (substitute_par(call_object, env_vars))
+  }
+  
+  evaluate_by_pos <- function(call_obj) {
+    if (class(call_obj) == "name"){
+      if (substr(call_obj, 1, 1) == '@'){
+        return (as.call(list(quote(`[`), quote(p), as.numeric(substr(call_obj, 2, 1000)))))
+      }
+      else if (substr(call_obj, 1, 1) == '$'){
+        return (as.call(list(quote(`[`), quote(x), as.numeric(substr(call_obj, 2, 1000)))))
+      }
+      else
+        return (call_obj)
+    }
+    else if (class(call_obj) == "call")
+      return (as.call(
+        lapply(call_obj, evaluate_by_pos)
+      ))
+    else
+      return (call_obj)
+  }
   
   # analyze monotonicity
   if (monotonicity == "default")
@@ -38,7 +73,11 @@ PSObject <- function(
   
   for (stratum in strata) {
     if (stratum == strata[1]){
-      stratum_model_list[[stratum]] <- 0
+      stratum_model_list[[stratum]] <- list(
+        mean = 0, eval = function(x, p) {
+          return (0)
+        }
+      )
     }
     else{
       new_param <- S_model_info$parameters
@@ -48,7 +87,13 @@ PSObject <- function(
         )
       }
       parameter_list <- c(parameter_list, new_param)
-      stratum_model_list[[stratum]] <- S_model_info$evaluate(start_num)
+      tmp_mean <- unname_symbol(S_model_info$evaluate(start_num), env)
+      stratum_model_list[[stratum]] <- list(
+        mean = tmp_mean,
+        eval = function(x, p){
+          eval(substitute_par(evaluate_by_pos(tmp_mean), env = list(x = x, p = p)))
+        }
+      )
       start_num <- start_num + S_model_info$num_of_parameters
     }
   }
@@ -56,7 +101,7 @@ PSObject <- function(
   #models for outcome
   Y_model_info <- manipulate_formula(Y.model)
   outcome.var <- Y_model_info$symbols$LHS[[1]]
-  if (F) # to change
+  if (Y.family$family == "survival")
     censor.var <- Y_model_info$symbols$LHS[[2]]
   else
     censor.var <- NULL
@@ -66,7 +111,23 @@ PSObject <- function(
       Y.model, Y.family, stratum %in% ER, stratum
     )(start_num)
     parameter_list <- c(parameter_list, model$param_list)
-    outcome_model_list[[stratum]] <- model$model_list
+    get_model <- function(l) {
+      return (l$mean)
+    }
+    outcome_model_list[[stratum]] <- lapply(
+      model$model_list, 
+      function(l)
+        c(
+          lapply(
+            l, 
+            function(x)
+              unname_symbol(x, env)
+          ),
+          eval = function(x, p){
+            eval(substitute_par(evaluate_by_pos(get_model(l)), env = list(x = x, p = p)))
+          }
+        )
+    )
     start_num <- model$start
   }
   
@@ -105,16 +166,6 @@ PSObject <- function(
 }
 
 write.pso <- function(obj, filename = NULL){
-  substitute_par <- function(call_object, env = c()){
-    return (eval(substitute(
-      substitute(y, env), 
-      list(y = call_object))
-    ))
-  }
-  
-  unname_symbol <- function(call_object, env_vars) {
-    return (substitute_par(call_object, env_vars))
-  }
   
   reformat <- function(call_object){
     args <- sapply(call_object[-1], deparse, backtick = F)
@@ -130,12 +181,6 @@ write.pso <- function(obj, filename = NULL){
   
   if (!is.null(filename))
     fileConn <- file(filename)
-  
-  env <- lapply(
-    1:length(obj$symbol_list), 
-    function(i) str2lang(paste('`$', i, '`', sep = ''))
-  )
-  names(env) <- obj$symbol_list
   
   indent <- function(str, indent) {
     return (paste0(paste0(rep(' ', indent), collapse = ''), str))
@@ -194,7 +239,7 @@ write.pso <- function(obj, filename = NULL){
           strtoi(names(obj$stratum_model_list)[i], 2), 
           ": ", 
           deparse(
-            unname_symbol(obj$stratum_model_list[[i]], env),
+            obj$stratum_model_list[[i]]$mean,
             backtick = F
           )
         ), indent = 4
@@ -213,9 +258,7 @@ write.pso <- function(obj, filename = NULL){
             strtoi(names(obj$outcome_model)[i], 2), 
             ", ", j,  ": ", 
             reformat(
-              unname_symbol(
-                obj$outcome_model[[i]][[j + 1]]$model, env
-              )
+              obj$outcome_model[[i]][[j + 1]]$model
             )
           ), indent = 4
         )

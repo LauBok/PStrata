@@ -133,6 +133,12 @@ build_inv_guassian <- function(link, param_start_num){
   ))
 }
 
+survival <- function() {
+  return (list(
+    family = "survival"
+  ))
+}
+
 ### survival
 build_survival <- function(link, param_start_num){
   .param_list <- list(
@@ -142,11 +148,16 @@ build_survival <- function(link, param_start_num){
   .param1 <- str2lang(paste0('`@', param_start_num, '`'))
   .param2 <- str2lang(paste0('`@', param_start_num + 1, '`'))
   .mean_func <- function(core){
-    return (core)
+    return (
+      as.call(list(
+        quote(exp),
+        as.call(list(quote(`+`), as.call(list(quote(`+`), .param1, .param2)), core))
+      ))
+    )
   }
   .model_func <- function(core){
     return (as.call(list(
-      quote(survival_lpdf), .mean_func(core), .param1, .param2, quote(.)
+      quote(survival_lpdf), core, .param1, .param2, quote(.)
     )))
   }
   return (list(

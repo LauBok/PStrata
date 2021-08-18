@@ -21,53 +21,58 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
     X = dplyr::select(data, as.character(obj$symbol_list))
   )
   if (!is.null(obj$variables$censor))
-    df$C = dplyr::pull(data, obj$variables$censor)
+    df$C <- dplyr::pull(data, obj$variables$censor)
   stanfit <- rstan::stan(paste0(model_name, ".stan"), data = df, 
                          ...
   )
   pso_code <- paste(readLines(paste0(model_name, '.pso')), collapse = '\n')
   stan_code <- paste(readLines(paste0(model_name, '.stan')), collapse = '\n')
-  return (stanfit)
-  
   posterior_samples <- do.call(rbind, rstan::extract(stanfit))
-  get_mean_difference_individual <- function(i, j){
-    cur_effect <- matrix(0, nrow = 3, ncol = length(obj$strata), 
-                         dimnames = list(c("effect", "weight", "bool"), obj$strata))
+  
+  avg <- function(par) {
+    mat <- as.matrix(df$X)
+    single_outcome <- function(stratum) {
+      mean1 <- apply(mat, 1, function(x) obj$outcome_model_list[[stratum]][[2]]$eval(x, par))
+      mean0 <- apply(mat, 1, function(x) obj$outcome_model_list[[stratum]][[1]]$eval(x, par))
+      prob <- apply(mat, 1, function(x) obj$stratum_model_list[[stratum]]$eval(x, par))
+      prob <- prob - max(prob)
+      res1 <- sum(mean1 * exp(prob)) / sum(exp(prob))
+      res0 <- sum(mean0 * exp(prob)) / sum(exp(prob))
+      return (c(res1, res0))
+    }
+    resmat <- matrix(nrow = 4, ncol = length(obj$strata))
+    dimnames(resmat) <- list(c('Z = 0', 'Z = 1', 'ATE', 'Prob'), obj$strata)
     for (stratum in obj$strata){
-      if (as.numeric(substring(stratum, df$Z[i] + 1, df$Z[i] + 1)) == df$D[i]){
-        # this stratum counts
-        cur_effect["bool", stratum] = 1
-        # calculate the probability
-        log_prob <- obj$S_list[[stratum]]$fun(df$X[i,], posterior_samples[, j])
-        cur_effect["weight", stratum] <- log_prob
-        # calculate the causal effect
-        tmp_obj <- obj$Y_list[[stratum]]
-        out_1 <- tmp_obj[[2]]$fun(df$X[i,], posterior_samples[, j])
-        out_0 <- tmp_obj[[1]]$fun(df$X[i,], posterior_samples[, j])
-        out_1_inv_link <- tmp_obj[[2]]$invlink(out_1)
-        out_0_inv_link <- tmp_obj[[1]]$invlink(out_0)
-        cur_effect["effect", stratum] <-out_1_inv_link - out_0_inv_link
-      }
+      resmat[1:2, stratum] <- single_outcome(stratum)
     }
-    cur_effect["weight", ] = cur_effect["weight", ] - max(cur_effect["weight", ])
-    cur_effect["weight", ] = exp(cur_effect["weight", ]) * cur_effect["bool", ]
-    cur_effect["weight", ] = cur_effect["weight", ] / sum(cur_effect["weight", ])
-    cur_effect["effect", ] = cur_effect["effect", ] * cur_effect["weight", ]
-    return (cur_effect[c("effect", "weight"), ])
+    
+    if (Y.family == "survival")
+      resmat[3, ] <- resmat[1, ] / resmat[2, ]
+    else
+      resmat[3, ] <- resmat[1, ] - resmat[2, ]
+    
+    # probability
+    get_prob <- function(x) {
+      log_probs <- sapply(obj$strata, function(s) obj$stratum_model_list[[s]]$eval(x, par))
+      log_probs <- log_probs - max(log_probs)
+      return (exp(log_probs) / sum(exp(log_probs)))
+    }
+    resmat[4, ] <- rowMeans(apply(mat, 1, get_prob))
+    
+    return (resmat)
   }
   
-  get_mean_difference <- function(j){
-    causal_effect <- matrix(0, nrow = 2, ncol = length(obj$strata), 
-                            dimnames = list(c("effect", "weight"), obj$strata))
-    for (i in 1:df$N){
-      causal_effect <- causal_effect + get_mean_difference_individual(i, j)
-    }
-    return (c(causal_effect["weight", ], causal_effect["effect", ] / causal_effect["weight", ]))
-  }
+  causal_effects <- pbapply::pbapply(posterior_samples, 2, avg)
+  mean_effect <- apply(causal_effects, 1, mean)
+  se_effect <- apply(causal_effects, 1, sd)
+  effect_table <- matrix(nrow = 8, ncol = length(obj$strata))
+  dimnames(effect_table) <- list(
+    c("Prob (mean)", "Prob (sd)", "Z=1 (mean)", "Z=1 (sd)", "Z=0 (mean)", "Z=0 (sd)", "ATE (mean)", "ATE (sd)"), obj$strata
+  )
+  effect_table[c(3, 5, 7, 1), ] <- matrix(mean_effect, nrow = 4, byrow = F)
+  effect_table[c(4, 6, 8, 2), ] <- matrix(se_effect, nrow = 4, byrow = F)
   
-  causal_effects <- pbapply::pbsapply(1:ncol(posterior_samples), get_mean_difference)
-  
-  param_names <- c(sapply(obj$param_list, function(x) x$name), "__lp")
+  param_names <- c(sapply(obj$parameter_list, function(x) x$name), "__lp")
   rownames(posterior_samples) <- param_names
   
   res <- list(
@@ -77,16 +82,16 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
     pso_code = pso_code,
     stan_code = stan_code,
     post_samples = posterior_samples,
-    causal_effect = causal_effects
+    causal_effect = effect_table
   )
   class(res) <- "PStrata"
-  #return (res)
+  return (res)
 }
 
 print_future.PStrata <- function(obj){
   cat("Posterior estimate of the parameters:\n")
   mat <- rstan::summary(obj$stanfit)$summary
-  param_names <- sapply(obj$PSobject$param_list, function(x) x$name)
+  param_names <- sapply(obj$PSobject$parameter_list, function(x) x$name)
   rownames(mat) <- c(param_names, "__lp")
   print(mat)
   cat('\n')
