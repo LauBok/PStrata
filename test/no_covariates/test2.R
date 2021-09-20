@@ -1,12 +1,14 @@
 #gitcreds::gitcreds_set()
 
-# Test 1: No covariates, 2 strata (n - 00, c - 01), ER for 00.
+# Test 2: No covariates, 3 strata (n - 00, c - 01, a - 11), ER for 00 and 11.
 # Aug 28, 2021
 # Models:
 # P(S = 00) = 0.3
-# P(S = 01) = 0.7
+# P(S = 01) = 0.2
+# P(S = 11) = 0.5
 # Y | S = 00 ~ N(3, 1)
 # Y | S = 01, Z ~ N(-1 - Z, 0.5)
+# Y | S = 11 ~ N(1, 2)
 
 set.seed(0)
 
@@ -24,9 +26,9 @@ data$S <- sapply(
   1:n,
   function(i) get_one(
     log(0.3), 
-    log(0.7),
+    log(0.2),
     NA,
-    NA
+    log(0.5)
   )
 )
 data$Z <- rbinom(n, 1, 0.5)
@@ -35,9 +37,12 @@ data$D <- ifelse(raw_data$Z == 1,
                      ifelse(raw_data$S %in% c(3, 4), 1, 0))
 data$Y <- ifelse(raw_data$S == 1,
                      rnorm(n, 3, 1), 
-                     rnorm(n, -1 - raw_data$Z, 0.5))
+                 ifelse(raw_data$S == 2,
+                     rnorm(n, -1 - raw_data$Z, 0.5),
+                     rnorm(n, 1, 2))
+)
 
-write.csv(data, "test/no_covariates/data1.csv", row.names = F)
+write.csv(data, "test/no_covariates/data2.csv", row.names = F)
 
 
 result <- PStrata::PStrata(
@@ -45,11 +50,27 @@ result <- PStrata::PStrata(
   Y.formula = Y ~ 1,
   Y.family = gaussian(),
   data = data,
-  monotonicity = "strong",
-  ER = c('00'),
+  monotonicity = "default",
+  ER = c('00', '11'),
   trunc = FALSE,
   chains = 1, warmup = 200, iter = 500
 )
 
 
 plot(result)
+
+
+# if misspecified ER
+
+result2 <- PStrata::PStrata(
+  S.formula = Z + D ~ 1,
+  Y.formula = Y ~ 1,
+  Y.family = gaussian(),
+  data = data,
+  monotonicity = "default",
+  ER = c('00'),
+  trunc = FALSE,
+  chains = 1, warmup = 500, iter = 2000
+)
+
+plot(result2)
