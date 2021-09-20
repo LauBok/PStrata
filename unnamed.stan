@@ -14,28 +14,21 @@ data {
     int<lower=1> N;
     int<lower=0, upper=1> Z[N];
     int<lower=0, upper=1> D[N];
-    int<lower=0, upper=1> C[N];
-    real<lower=0> Y[N];
+    real Y[N];
 }
 parameters {
     real par_1;
     real par_2;
-    real par_3;
+    real<lower=0> par_3;
     real par_4;
-    real par_5;
+    real<lower=0> par_5;
     real par_6;
-    real par_7;
-    real par_8;
-    real par_9;
-    real par_10;
+    real<lower=0> par_7;
 }
 model {
-    par_3 ~ normal(0, 1);
-    par_4 ~ normal(0, 1);
-    par_6 ~ normal(0, 1);
-    par_7 ~ normal(0, 1);
-    par_9 ~ normal(0, 1);
-    par_10 ~ normal(0, 1);
+    par_3 ~ inv_gamma(1, 1);
+    par_5 ~ inv_gamma(1, 1);
+    par_7 ~ inv_gamma(1, 1);
     for (n in 1:N) {
         real log_prob_0 = 0;
         real log_prob_1 = par_1 * 1;
@@ -51,16 +44,16 @@ model {
             real log_l[length];
             if (Z[n] == 0 && D[n] == 0) {
                 // strata: 0, 1
-                log_l[1] = log_prob_0 + survival_lpdf(Y[n] | par_2 * 1, par_3, par_4, C[n]);
-                log_l[2] = log_prob_1 + survival_lpdf(Y[n] | par_5 * 1, par_6, par_7, C[n]);
+                log_l[1] = log_prob_0 + normal_lpdf(Y[n] | par_2 * 1, par_3);
+                log_l[2] = log_prob_1 + normal_lpdf(Y[n] | par_4 * 1, par_5);
             }
             else if (Z[n] == 1 && D[n] == 0) {
                 // strata: 0
-                log_l[1] = log_prob_0 + survival_lpdf(Y[n] | par_2 * 1, par_3, par_4, C[n]);
+                log_l[1] = log_prob_0 + normal_lpdf(Y[n] | par_2 * 1, par_3);
             }
             else if (Z[n] == 1 && D[n] == 1) {
                 // strata: 1
-                log_l[1] = log_prob_1 + survival_lpdf(Y[n] | par_8 * 1, par_9, par_10, C[n]);
+                log_l[1] = log_prob_1 + normal_lpdf(Y[n] | par_6 * 1, par_7);
             }
             target += log_sum_exp(log_l) - log_prob_all;
         }

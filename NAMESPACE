@@ -1,6 +1,6 @@
 useDynLib(PStrata, .registration=TRUE)
 importFrom(Rcpp, evalCpp)
 S3method(print, PSobject)
-S3method(print, PSstan)
-S3method(plot, PSstan)
+S3method(print, PStrata)
+S3method(plot, PStrata)
 exportPattern("^[[:alpha:]]+")

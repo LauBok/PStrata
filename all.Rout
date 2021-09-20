@@ -1,0 +1,31 @@
+Error in compileCode(f, code, language = language, verbose = verbose) : 
+  C:/Users/boliu/Documents/R/win-library/4.1/RcppEigen/include/Eigen/src/Core/ProductEvaluators.h:35:90:   required from 'Eigen::internal::evaluator<Eigen::Product<Lhs, Rhs, Option> >::evaluator(const XprType&) [with Lhs = Eigen::Product<Eigen::CwiseBinaryOp<Eigen::internal::scalar_product_op<double, double>, const Eigen::CwiseNullaryOp<Eigen::internal::scalar_constant_op<double>, const Eigen::Matrix<double, 1, -1> >, const Eigen::Transpose<Eigen::Matrix<double, -1, 1> > >, Eigen::Matrix<double, -1, -1>, 0>; Rhs = Eigen::Matrix<double, -1, 1>; int Options = 0; Eigen::internal::evaluator<Eigen::Product<Lhs, Rhs, Option> >::XprType = Eigen::Product<Eigen::Product<Eigen::CwiseBinaryOp<Eigen::internal::scalar_product_op<double, double>, const Eigen::CwiseNullaryOp<Eigen::internal::scalar_constant_op<double>, const Eigen::Matrix<double, 1, -1> >, const Eigen::Transpose<Eigen::Matrix<double, -1, 1> > >, Eigen::Matrix<double, -1, -1>, 0>, Eigen::Matrix<double, -1, 1>, 0>]'C:/Users/boli
+Error in sink(type = "output") : invalid connection
+Error in options(warning.length = 100000L) : 
+  invalid value for 'warning.length'
+
+Error in sink(type = "output") : invalid connection
+Warning message:
+In sink() : no sink to remove
+Warning message:
+In sink() : no sink to remove
+Warning message:
+In sink() : no sink to remove
+Error in compileCode(f, code, language = language, verbose = verbose) : 
+  C:/Users/boliu/Documents/R/win-library/4.1/RcppEigen/include/Eigen/src/Core/ProductEvaluators.h:35:90:   required from 'Eigen::internal::evaluator<Eigen::Product<Lhs, Rhs, Option> >::evaluator(const XprType&) [with Lhs = Eigen::Product<Eigen::CwiseBinaryOp<Eigen::internal::scalar_product_op<double, double>, const Eigen::CwiseNullaryOp<Eigen::internal::scalar_constant_op<double>, const Eigen::Matrix<double, 1, -1> >, const Eigen::Transpose<Eigen::Matrix<double, -1, 1> > >, Eigen::Matrix<double, -1, -1>, 0>; Rhs = Eigen::Matrix<double, -1, 1>; int Options = 0; Eigen::internal::evaluator<Eigen::Product<Lhs, Rhs, Option> >::XprType = Eigen::Product<Eigen::Product<Eigen::CwiseBinaryOp<Eigen::internal::scalar_product_op<double, double>, const Eigen::CwiseNullaryOp<Eigen::internal::scalar_constant_op<double>, const Eigen::Matrix<double, 1, -1> >, const Eigen::Transpose<Eigen::Matrix<double, -1, 1> > >, Eigen::Matrix<double, -1, -1>, 0>, Eigen::Matrix<double, -1, 1>, 0>]'C:/Users/boli
+Error in sink(type = "output") : invalid connection
+载入需要的程辑包：StanHeaders
+
+rstan version 2.26.3 (Stan version 2.26.1)
+
+For execution on a local, multicore CPU with excess RAM we recommend calling
+options(mc.cores = parallel::detectCores()).
+To avoid recompilation of unchanged Stan programs, we recommend calling
+rstan_options(auto_write = TRUE)
+For within-chain threading using `reduce_sum()` or `map_rect()` Stan functions,
+change `threads_per_chain` option:
+rstan_options(threads_per_chain = 1)
+
+Do not specify '-march=native' in 'LOCAL_CPPFLAGS' or a Makevars file
+Error in compileCode(f, code, language = language, verbose = verbose) : 
+  C:/Users/boliu/Documents/R/win-library/4.1/RcppEigen/include/Eigen/src/Core/ProductEvaluators.h:35:90:   required from 'Eigen::internal::evaluator<Eigen::Product<Lhs, Rhs, Option> >::evaluator(const XprType&) [with Lhs = Eigen::Product<Eigen::CwiseBinaryOp<Eigen::internal::scalar_product_op<double, double>, const Eigen::CwiseNullaryOp<Eigen::internal::scalar_constant_op<double>, const Eigen::Matrix<double, 1, -1> >, const Eigen::Transpose<Eigen::Matrix<double, -1, 1> > >, Eigen::Matrix<double, -1, -1>, 0>; Rhs = Eigen::Matrix<double, -1, 1>; int Options = 0; Eigen::internal::evaluator<Eigen::Product<Lhs, Rhs, Option> >::XprType = Eigen::Product<Eigen::Product<Eigen::CwiseBinaryOp<Eigen::internal::scalar_product_op<double, double>, const Eigen::CwiseNullaryOp<Eigen::internal::scalar_constant_op<double>, const Eigen::Matrix<double, 1, -1> >, const Eigen::Transpose<Eigen::Matrix<double, -1, 1> > >, Eigen::Matrix<double, -1, -1>, 0>, Eigen::Matrix<double, -1, 1>, 0>]'C:/Users/boli

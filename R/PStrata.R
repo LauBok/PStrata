@@ -36,6 +36,10 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
       mean0 <- apply(mat, 1, function(x) obj$outcome_model_list[[stratum]][[1]]$eval(x, par))
       prob <- apply(mat, 1, function(x) obj$stratum_model_list[[stratum]]$eval(x, par))
       prob <- prob - max(prob)
+      if (Y.family == "survival"){
+        mean1 <- exp(mean1)
+        mean0 <- exp(mean0)
+      }
       res1 <- sum(mean1 * exp(prob)) / sum(exp(prob))
       res0 <- sum(mean0 * exp(prob)) / sum(exp(prob))
       return (c(res1, res0))
@@ -47,7 +51,7 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
     }
     
     if (Y.family == "survival")
-      resmat[3, ] <- resmat[1, ] / resmat[2, ]
+      resmat[3, ] <- resmat[1, ] / resmat[2, ] # ? should do this?
     else
       resmat[3, ] <- resmat[1, ] - resmat[2, ]
     
@@ -82,13 +86,14 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
     pso_code = pso_code,
     stan_code = stan_code,
     post_samples = posterior_samples,
-    causal_effect = effect_table
+    causal_effects = causal_effects,
+    effect_table = effect_table
   )
   class(res) <- "PStrata"
   return (res)
 }
 
-print_future.PStrata <- function(obj){
+print.PStrata <- function(obj){
   cat("Posterior estimate of the parameters:\n")
   mat <- rstan::summary(obj$stanfit)$summary
   param_names <- sapply(obj$PSobject$parameter_list, function(x) x$name)
@@ -96,23 +101,25 @@ print_future.PStrata <- function(obj){
   print(mat)
   cat('\n')
   cat("Estimated Proportion from Each Stratum:\n")
-  prop_S <- obj$causal_effect[1 : (nrow(obj$causal_effect) %/% 2), ]
-  prop_S <- apply(prop_S, 2, function(x) x / sum(x))
+  n_strata <- length(obj$PSobject$strata)
+  prop_S <- obj$causal_effects[4 * (1:n_strata), ]
   mat1 <- t(apply(prop_S, 1, function(x) c(mean(x), sd(x),
                                            quantile(x, c(0.025, 0.975)))))
   colnames(mat1) <- c("mean", "sd", "lwr", "upr")
+  rownames(mat1) <- obj$PSobject$strata
   print(mat1)
   
   cat('\n')
   cat("Causal Effect of Principal Strata:\n")
-  causal_effect_Y <- obj$causal_effect[(1 + nrow(obj$causal_effect) %/% 2) : nrow(obj$causal_effect), ]
-  mat2 <- t(apply(causal_effect_Y, 1, function(x) c(mean(x), sd(x),
-                                                    quantile(x, c(0.025, 0.975)))))
+  causal_Y <- obj$causal_effects[4 * (1:n_strata) - 1, ]
+  mat2 <- t(apply(causal_Y, 1, function(x) c(mean(x), sd(x),
+                                             quantile(x, c(0.025, 0.975)))))
   colnames(mat2) <- c("mean", "sd", "lwr", "upr")
+  rownames(mat2) <- obj$PSobject$strata
   print(mat2)
 }
 
-plot_future.PStrata <- function(obj){
+plot.PStrata <- function(obj){
   data_raw <- data.frame(t(obj$post_samples))
   data_long <- do.call(dplyr::bind_rows, lapply(names(data_raw), 
                                                 function(col) data.frame(

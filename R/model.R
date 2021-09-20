@@ -149,10 +149,7 @@ build_survival <- function(link, param_start_num){
   .param2 <- str2lang(paste0('`@', param_start_num + 1, '`'))
   .mean_func <- function(core){
     return (
-      as.call(list(
-        quote(exp),
-        as.call(list(quote(`+`), as.call(list(quote(`+`), .param1, .param2)), core))
-      ))
+      as.call(list(quote(`+`), as.call(list(quote(`+`), .param1, .param2)), core))
     )
   }
   .model_func <- function(core){
