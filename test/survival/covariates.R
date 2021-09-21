@@ -41,24 +41,24 @@ data$D <- ifelse(data$Z == 1,
                  ifelse(data$S %in% c(3, 4), 1, 0))
 
 data$Y <- ifelse(data$S == 1,
-                 sample_survival(n, 1, 1), 
+                 sample_survival(n, 1, 0.5 + 0.02 * data$age), 
                  ifelse(data$S == 2,
-                        sample_survival(n, 1, 3 - 1 * data$Z),
-                        sample_survival(n, 1, 1))
+                        sample_survival(n, 1, 2 - data$Z - 0.05 * data$age),
+                        sample_survival(n, 1, 1 - 0.05 * data$age))
 )
 
 data$C <- rbinom(n, 1, 0)
 
-write.csv(data, "test/survival/data_no_covariate.csv", row.names = F)
+write.csv(data, "test/survival/data_covariate1.csv", row.names = F)
 
 result <- PStrata::PStrata(
-  S.formula = Z + D ~ 1,
-  Y.formula = Y + C ~ 1,
+  S.formula = Z + D ~ age,
+  Y.formula = Y + C ~ age ,
   Y.family = survival(),
   data = data,
   monotonicity = "strong",
   ER = c('00'),
-  prior_coefficient = prior_normal(0, 10),
+  prior_coefficient = prior_normal(0, 1),
   trunc = FALSE,
   chains = 1, warmup = 200, iter = 500
 )

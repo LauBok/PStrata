@@ -10,7 +10,7 @@
 
 set.seed(0)
 
-data <- read.csv("test/data.csv")
+data <- read.csv("test/no_covariates/data1.csv")
 n <- nrow(raw_data)
 
 get_one <- function(log_p1, log_p2, log_p3, log_p4) {
