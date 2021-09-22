@@ -142,7 +142,7 @@ survival <- function() {
 ### survival
 build_survival <- function(link, param_start_num){
   .param_list <- list(
-    list(type = "real", prior_type = "prior_theta", name = "Theta"),
+    list(type = "real", prior_type = "prior_theta", name = "Theta")
   )
   .param <- str2lang(paste0('`@', param_start_num, '`'))
   .mean_func <- function(core){
