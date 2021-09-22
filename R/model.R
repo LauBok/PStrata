@@ -142,19 +142,17 @@ survival <- function() {
 ### survival
 build_survival <- function(link, param_start_num){
   .param_list <- list(
-    list(type = "real", prior_type = "prior_theta", name = "Theta1"),
-    list(type = "real", prior_type = "prior_theta", name = "Theta2")
+    list(type = "real", prior_type = "prior_theta", name = "Theta"),
   )
-  .param1 <- str2lang(paste0('`@', param_start_num, '`'))
-  .param2 <- str2lang(paste0('`@', param_start_num + 1, '`'))
+  .param <- str2lang(paste0('`@', param_start_num, '`'))
   .mean_func <- function(core){
     return (
-      as.call(list(quote(`+`), as.call(list(quote(`+`), .param1, .param2)), core))
+      as.call(list(quote(`+`), .param, core))
     )
   }
   .model_func <- function(core){
     return (as.call(list(
-      quote(survival_lpdf), core, .param1, .param2, quote(.)
+      quote(survival_lpdf), core, .param, quote(.)
     )))
   }
   return (list(

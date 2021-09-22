@@ -25,7 +25,7 @@ PSObject <- function(
   substitute_par <- function(call_object, env = c()){
     return (eval(substitute(
       substitute(y, env), 
-      list(y = call_object))
+      list(y = call_object, env = env))
     ))
   }
   
@@ -124,7 +124,7 @@ PSObject <- function(
               unname_symbol(x, env)
           ),
           eval = function(x, p){
-            eval(substitute_par(evaluate_by_pos(get_model(l)), env = list(x = x, p = p)))
+            eval(substitute_par(evaluate_by_pos(unname_symbol(get_model(l), env)), env = list(x = x, p = p)))
           }
         )
     )
