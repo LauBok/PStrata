@@ -41,9 +41,9 @@ data$D <- ifelse(data$Z == 1,
                  ifelse(data$S %in% c(3, 4), 1, 0))
 
 data$Y <- ifelse(data$S == 1,
-                 sample_survival(n, 1, 0.5 + 0.02 * data$age), 
+                 sample_survival(n, 1, 0.5 + 0.002 * data$age), 
                  ifelse(data$S == 2,
-                        sample_survival(n, 1, 2 - data$Z - 0.05 * data$age),
+                        sample_survival(n, 1, 2 - data$Z - 0.005 * data$age),
                         sample_survival(n, 1, 1 - 0.05 * data$age))
 )
 

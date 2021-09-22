@@ -13,7 +13,7 @@
 set.seed(0)
 
 data <- read.csv("test/data.csv")
-n <- nrow(raw_data)
+n <- nrow(data)
 
 get_one <- function(log_p1, log_p2, log_p3, log_p4) {
   m <- max(log_p1, log_p2, log_p3, log_p4, na.rm = T)
@@ -32,13 +32,13 @@ data$S <- sapply(
   )
 )
 data$Z <- rbinom(n, 1, 0.5)
-data$D <- ifelse(raw_data$Z == 1, 
-                     ifelse(raw_data$S %in% c(2, 4), 1, 0), 
-                     ifelse(raw_data$S %in% c(3, 4), 1, 0))
-data$Y <- ifelse(raw_data$S == 1,
+data$D <- ifelse(data$Z == 1, 
+                     ifelse(data$S %in% c(2, 4), 1, 0), 
+                     ifelse(data$S %in% c(3, 4), 1, 0))
+data$Y <- ifelse(data$S == 1,
                      rnorm(n, 3, 1), 
-                 ifelse(raw_data$S == 2,
-                     rnorm(n, -1 - raw_data$Z, 0.5),
+                 ifelse(data$S == 2,
+                     rnorm(n, -1 - data$Z, 0.5),
                      rnorm(n, 1, 2))
 )
 
