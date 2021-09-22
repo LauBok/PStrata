@@ -43,8 +43,6 @@ std::string replace(const std::string& text, bool single = false){
       else{
         if (cur_state == '@')
           res += "par_" + tmp;
-        else if (single)
-          res += "X[n]";
         else
           res += "X[n, " + tmp + "]";
         tmp = "";
@@ -63,8 +61,6 @@ std::string replace(const std::string& text, bool single = false){
   }
   if (cur_state == '@')
     res += "par_" + tmp;
-  else if (cur_state == '$' && single)
-    res += "X[n]";
   else if (cur_state == '$')
     res += "X[n, " + tmp + "]";
   return res;
@@ -105,13 +101,10 @@ std::string Object::to_string_data() const {
   tmp.emplace_back("int<lower=0, upper=1> D[N];");
   if (this->Y_type == "survival")
     tmp.emplace_back("int<lower=0, upper=1> C[N];");
-  if (X_name.size() > 1)
-    tmp.push_back(
-      std::string("real X[N, ") +
-        std::to_string(this->X_name.size()) +
-        "];");
-  else if (X_name.size() == 1)
-    tmp.emplace_back("real X[N];");
+  tmp.push_back(
+    std::string("real X[N, ") +
+      std::to_string(this->X_name.size()) +
+      "];");
   std::string t;
   if (this->Y_type == "continuous")
     t = "real";
