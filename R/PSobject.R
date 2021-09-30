@@ -166,9 +166,12 @@ PSObject <- function(
 }
 
 write.pso <- function(obj, filename = NULL){
+  my_deparse <- function(x, ...){
+    paste0(deparse(x, ...), collapse = "")
+  }
   
   reformat <- function(call_object){
-    args <- sapply(call_object[-1], deparse, backtick = F)
+    args <- sapply(call_object[-1], my_deparse, backtick = F)
     str_args <- paste0(args, collapse = ', ')
     strings <- c(
       as.character(call_object[[1]]),
@@ -222,7 +225,7 @@ write.pso <- function(obj, filename = NULL){
     if (is.null(call))
       tmp_str <- "uniform()"
     else
-      tmp_str <- deparse(call)
+      tmp_str <- deparse(call, width.cutoff = 500L)
     lines <- c(
       lines, 
       indent(paste0('@', i, ' ~ ', tmp_str), indent = 4)
@@ -237,10 +240,12 @@ write.pso <- function(obj, filename = NULL){
       indent(
         paste0(
           strtoi(names(obj$stratum_model_list)[i], 2), 
-          ": ", 
-          deparse(
-            obj$stratum_model_list[[i]]$mean,
-            backtick = F
+          ": ",
+          paste0(
+            deparse(
+              obj$stratum_model_list[[i]]$mean,
+              backtick = F
+            ), collapse = ''
           )
         ), indent = 4
       )
