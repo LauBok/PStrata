@@ -30,8 +30,8 @@ data$S <- sapply(
   1:n,
   function(i) get_one(
     log(0.3), 
-    log(0.7),
-    NA,
+    log(0.2),
+    log(0.5),
     NA
   )
 )
@@ -44,12 +44,20 @@ data$Y <- ifelse(data$S == 1,
                  sample_survival(n, 1, 1), 
                  ifelse(data$S == 2,
                         sample_survival(n, 1, 3 - 1 * data$Z),
-                        sample_survival(n, 1, 1))
+                        sample_survival(n, 0.5, 1))
 )
 
 data$C <- rbinom(n, 1, 0)
 
 write.csv(data, "test/survival/data_no_covariate.csv", row.names = F)
+
+PSObject(
+  S.model = Z + D ~ 1,
+  Y.model = Y + C ~ 1,
+  Y.family = survival(),
+  monotonicity = "strong",
+  ER = c('00')
+) -> obj
 
 result <- PStrata::PStrata(
   S.formula = Z + D ~ 1,

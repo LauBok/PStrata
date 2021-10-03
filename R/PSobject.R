@@ -90,9 +90,10 @@ PSObject <- function(
       tmp_mean <- unname_symbol(S_model_info$evaluate(start_num), env)
       stratum_model_list[[stratum]] <- list(
         mean = tmp_mean,
-        eval = function(x, p){
-          eval(substitute_par(evaluate_by_pos(tmp_mean), env = list(x = x, p = p)))
-        }
+        eval = (function(q) {
+          return (function(x, p){
+            eval(substitute_par(evaluate_by_pos(q), env = list(x = x, p = p)))
+          })})(tmp_mean)
       )
       start_num <- start_num + S_model_info$num_of_parameters
     }
