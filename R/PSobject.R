@@ -91,6 +91,7 @@ PSObject <- function(
       stratum_model_list[[stratum]] <- list(
         mean = tmp_mean,
         eval = (function(q) {
+          print(q)
           return (function(x, p){
             eval(substitute_par(evaluate_by_pos(q), env = list(x = x, p = p)))
           })})(tmp_mean)
