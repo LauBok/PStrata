@@ -1,242 +1,122 @@
-### gaussian
-build_gaussian <- function(link, param_start_num){
-  .param_list <- list(list(
-    type = "positive", prior_type = "prior_sigma", name = "Sigma"
+survival <- function(link = "identity") {
+  return (list(
+    family = "survival",
+    link = link
   ))
-  .param <- str2lang(paste0('`@', param_start_num, '`'))
-  .mean_func <- function(core){
-    if (link == "identity")
-      return (core)
-    if (link == "log")
-      return (as.call(list(quote(exp), core)))
-    if (link == "inverse")
-      return (as.call(list(quote(`/`), 1, core)))
-  }
-  .model_func <- function(core){
-    return (as.call(list(
-      quote(normal_lpdf), .mean_func(core), .param
+}
+
+model <- function(family, formula) {
+  family_chr <- family$family
+  link_chr <- family$link
+  formula <- formula
+  return (list(
+    family = family_chr,
+    link = link_chr,
+    formula = formula
+  ))
+}
+
+get_param_from_model <- function(model) {
+  prse_fml <- parse.formula(model$formula)
+  param_list <- list()
+  if (prse_fml$has_intercept) {
+    param_list <- c(param_list, list(list(
+      type = "real", prior_type = "prior_intercept", name = "Intrcpt"
     )))
   }
-  return (list(
-    param_list = .param_list,
-    mean_func = .mean_func,
-    model_func = .model_func
-  ))
-}
-
-### binomial
-build_binomial <- function(link, param_start_num){
-  .param_list <- list()
-  .mean_func <- function(core){
-    if (link == "logit")
-      return (as.call(list(quote(inv_logit), core)))
-    if (link == "probit")
-      return (as.call(list(quote(inv_Phi), core)))
-    if (link == "cauchit"){
-      .atan <- as.call(list(quote(atan), core))
-      .pi <- as.call(list(quote(pi)))
-      .div <- as.call(list(quote(`/`), .atan, .pi))
-      return (as.call(list(quote(`+`), .5, .div)))
-    }
-    if (link == "log")
-      return (as.call(list(quote(exp), core)))
-    if (link == "cloglog")
-      return (as.call(list(quote(inv_cloglog), core)))
-  }
-  .model_func <- function(core){
-    return (as.call(list(
-      quote(bernoulli_lpmf), .mean_func(core)
+  param_list <- c(param_list, list(list(
+    type = "real_vct", dim = prse_fml$num_of_predictors,
+    prior_type = "prior_coefficient", name = "Coef"
+  )))
+  if (model$family == "gaussian")
+    param_list <- c(param_list, list(list(
+      type = "positive", prior_type = "prior_sigma", name = "Sigma"
     )))
-  }
-  return (list(
-    param_list = .param_list,
-    mean_func = .mean_func,
-    model_func = .model_func
-  ))
-}
-
-### Gamma
-build_Gamma <- function(link, param_start_num){
-  .param_list <- list(list(
-    type = "positive", prior_type = "prior_alpha", name = "Alpha"
-  ))
-  .param <- str2lang(paste0('`@', param_start_num, '`'))
-  .mean_func <- function(core){
-    if (link == "identity")
-      return (as.call(list(quote(`/`), .param, core)))
-    if (link == "log")
-      return (as.call(list(quote(`/`), .param, 
-                           as.call(list(quote(exp), core)))))
-    if (link == "inverse")
-      return (as.call(list(quote(`*`), .param, core)))
-  }
-  .model_func <- function(core){
-    return (as.call(list(
-      quote(gamma_lpdf), .param, .mean_func(core)
+  else if (model$family == "Gamma")
+    param_list <- c(param_list, list(list(
+      type = "positive", prior_type = "prior_alpha", name = "Alpha"
     )))
-  }
-  return (list(
-    param_list = .param_list,
-    mean_func = .mean_func,
-    model_func = .model_func
-  ))
-}
-
-### poisson
-build_poisson <- function(link, param_start_num){
-  .param_list <- list()
-  .mean_func <- function(core){
-    if (link == "identity")
-      return (core)
-    if (link == "log")
-      return (as.call(quote(exp), core))
-    if (link == "sqrt")
-      return (as.call(quote(`^`), core, 2))
-  }
-  .model_func <- function(core){
-    return (as.call(list(
-      quote(poisson_lpmf), .mean_func(core)
+  else if (model$family == "inv.gaussian")
+    param_list <- c(param_list, list(list(
+      type = "positive", prior_type = "prior_lambda", name = "Lambda"
     )))
-  }
-  return (list(
-    param_list = .param_list,
-    mean_func = .mean_func,
-    model_func = .model_func
-  ))
-}
-
-### inverse.gaussian
-build_inv_guassian <- function(link, param_start_num){
-  .param_list <- list(list(
-    type = "positive", prior_type = "prior_lambda", name = "Lambda"
-  ))
-  .param <- str2lang(paste0('`@', param_start_num, '`'))
-  .mean_func <- function(core){
-    if (link == "identity")
-      return (core)
-    if (link == "log")
-      return (as.call(list(quote(exp), core)))
-    if (link == "inverse")
-      return (as.call(list(quote(`/`), 1, core)))
-    if (link == "1/mu^2")
-      return (as.call(list(quote(`^`), core, -2)))
-  }
-  .model_func <- function(core){
-    return (as.call(list(
-      quote(inv_gaussian_lpdf), .mean_func(core), .param
+  else if (model$family == "survival")
+    param_list <- c(param_list, list(list(
+      type = "real", prior_type = "prior_theta", name = "Theta"
     )))
-  }
-  return (list(
-    param_list = .param_list,
-    mean_func = .mean_func,
-    model_func = .model_func
-  ))
+  return (param_list)
 }
 
-survival <- function() {
-  return (list(
-    family = "survival"
-  ))
-}
-
-### survival
-build_survival <- function(link, param_start_num){
-  .param_list <- list(
-    list(type = "real", prior_type = "prior_theta", name = "Theta")
-  )
-  .param <- str2lang(paste0('`@', param_start_num, '`'))
-  .mean_func <- function(core){
-    return (
-      as.call(list(quote(`+`), .param, core))
-    )
-  }
-  .model_func <- function(core){
-    return (as.call(list(
-      quote(survival_lpdf), core, .param, quote(.)
-    )))
-  }
-  return (list(
-    param_list = .param_list,
-    mean_func = .mean_func,
-    model_func = .model_func
-  ))
-}
-
-build_model <- function(family, param_start_num = 1L){
-  if (family$family == "gaussian")
-    res <- build_gaussian(family$link, param_start_num)
-  else if (family$family == "binomial")
-    res <- build_binomial(family$link, param_start_num)
-  else if (family$family == "Gamma")
-    res <- build_Gamma(family$link, param_start_num)
-  else if (family$family == "poisson")
-    res <- build_poisson(family$link, param_start_num)
-  else if (family$family == "inverse.gaussian")
-    res <- build_inv_gaussian(family$link, param_start_num)
-  else if (family$family == "survival")
-    res <- build_survival(family$link, param_start_num)
+get_dist_str <- function(family, Y.formula, group){
+  family_name <- family$family
+  link <- family$link
+  prse_fml_Y <- parse.formula(Y.formula)
+  name_intrcpt <- paste(c('Y', group, "Intrcpt"), collapse = '_')
+  name_coef <- paste(c('Y', group, "Coef"), collapse = '_')
+  str_core <- c()
+  if (prse_fml_Y$has_intercept)
+    str_core <- c(str_core, name_intrcpt)
+  str_core <- c(str_core, paste0("$ * ", name_coef))
+  str_mean <- paste(str_core, collapse = ' + ')
+  group_prefix <- paste(c("Y", group, ""), collapse = '_')
   
-  return (list(
-    params = res$param_list,
-    param_cnt = length(res$param_list),
-    mean = res$mean_func,
-    model = res$model_func
-  ))
-}
-
-model_template <- function(model, family, ER, stratum){
-  # OUTPUT: generated parameter list
-  # OUTPUT: generated model list
-  .func <- function(start_num = 1L){
-    param_list <- list()
-    model_list <- list()
-    
-    # model params
-    # this is the set of parameters related to the model
-    # we separate this part out because it might need to be reused
-    # depending whether or not ER is assumed
-    model_result <- manipulate_formula(model)
-    
-    for (i in 1:ifelse(ER, 1, 2)){
-      # generate a set of parameters for the model
-      # only generate a second set if ER is not assumed
-      core <- model_result$evaluate(start_num)
-      new_params <- model_result$parameters
-      if (length(new_params) != 0){
-        for (j in 1:(length(new_params))){
-          new_params[[j]]$name <- paste(
-            'Y', stratum, i - 1, new_params[[j]]$name, sep = "_"
-          )
-        }
-      }
-      param_list <- c(param_list, new_params)
-      start_num <- start_num + model_result$num_of_parameters
-      model.tmp <- build_model(family, start_num)
-      new_params <- model.tmp$params
-      if (length(new_params) != 0){
-        for (j in 1:(length(new_params))){
-          new_params[[j]]$name <- paste(
-            'Y', stratum, i - 1, new_params[[j]]$name, sep = "_"
-          )
-        }
-      }
-      param_list <- c(param_list, new_params)
-      model_list[[i]] <- list(
-        mean = model.tmp$mean(core),
-        model = model.tmp$model(core)
-      )
-      start_num <- start_num + model.tmp$param_cnt
-    }
-    
-    if (ER)
-      model_list[[2]] <- model_list[[1]]
-    
-    return (list(
-      param_list = param_list,
-      model_list = model_list,
-      start = start_num
-    ))
+  if (family_name == "gaussian"){
+    str_sigma <- paste0(group_prefix, "Sigma")
+    if (link == "identity")
+      str_inner <- str_mean
+    else if (link == 'qlog')
+      str_inner <- paste0("exp(", str_mean, ")")
+    else if (link == 'inverse')
+      str_inner <- paste0("1/(", str_mean, ")")
+    return (paste0("normal_lpdf(. | ", str_inner, ", ", str_sigma, ")"))
   }
-  
-  return (.func)
+  if (family_name == "binomial") {
+    if (link == 'logit')
+      str_inner <- paste0("inv_logit(", str_mean, ")")
+    else if (link == 'probit')
+      str_inner <- paste0("inv_Phi(", str_mean, ")")
+    else if (link == "cauchit")
+      str_inner <- paste0("atan(", str_mean, ") / pi + 0.5")
+    else if (link == "log")
+      str_inner <- paste0("exp(", str_mean, ")")
+    else if (link == "cloglog")
+      str_inner <- paste0("inv_cloglog(", str_mean, ")")
+    return (paste0("bernoulli_lpmf(. | ", str_inner, ")"))
+  }
+  if (family_name == "Gamma") {
+    str_alpha <- paste0(group_prefix, "Alpha")
+    if (link == "identity")
+      str_inner <- paste0(str_alpha, " / (", str_mean, ")")
+    else if (link == "log")
+      str_inner <- paste0(str_alpha, "/exp(", str_mean, ")")
+    else if (link == "inverse")
+      str_inner <- paste0(str_alpha, " * (", str_mean, ")")
+    return (paste0("gamma_lpdf(. | ", str_alpha, ", ", str_inner, ")"))
+  }
+  if (family_name == "poisson") {
+    if (link == "identity")
+      str_inner <- paste0(str_mean)
+    else if (link == "log")
+      str_inner <- paste0("exp(", str_mean, ")")
+    else if (link == "sqrt")
+      str_inner <- paste0("(", str_mean, ") ^ 2")
+    return (paste0("poisson_lpmf(. | ", str_inner, ")"))
+  }
+  if (family_name == "inv.gaussian") {
+    str_lambda <- paste0(group_prefix, "Lambda")
+    if (link == "identity")
+      str_inner <- paste0(str_mean)
+    else if (link == "log")
+      str_inner <- paste0("exp(", str_mean, ")")
+    else if (link == "inverse")
+      str_inner <- paste0("1 / (", str_mean, ")")
+    else if (link == "1/mu^2")
+      str_inner <- paste0("1 / (", str_mean, ")^2")
+    return (paste0("inv_gaussian_lpdf(. | ", str_inner, ", ", str_lambda, ")"))
+  }
+  if (family_name == "survival") {
+    str_theta <- paste0(group_prefix, "Theta")
+    str_inner <- paste0(str_theta, " + ", str_mean)
+    return (paste0("survival_lpdf(. | ", str_inner, ", ", str_theta, ", .)"))
+  }
 }

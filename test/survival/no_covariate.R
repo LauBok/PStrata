@@ -43,8 +43,8 @@ data$D <- ifelse(data$Z == 1,
 data$Y <- ifelse(data$S == 1,
                  sample_survival(n, 1, 1), 
                  ifelse(data$S == 2,
-                        sample_survival(n, 1, 3 - 1 * data$Z),
-                        sample_survival(n, 0.5, 1))
+                        sample_survival(n, 1, 4 - 1 * data$Z),
+                        sample_survival(n, 1, 6))
 )
 
 data$C <- rbinom(n, 1, 0)
@@ -55,20 +55,21 @@ PSObject(
   S.model = Z + D ~ 1,
   Y.model = Y + C ~ 1,
   Y.family = survival(),
-  monotonicity = "strong",
+  monotonicity = "default",
   ER = c('00')
 ) -> obj
 
-result <- PStrata::PStrata(
+result <- PStrata(
   S.formula = Z + D ~ 1,
   Y.formula = Y + C ~ 1,
   Y.family = survival(),
   data = data,
-  monotonicity = "strong",
-  ER = c('00'),
+  monotonicity = "default",
+  ER = c('00', '11'),
   prior_coefficient = prior_normal(0, 10),
   trunc = FALSE,
   chains = 1, warmup = 200, iter = 500
 )
 
 result
+saveRDS(result, file = "test/survival/no_covariate_result.RDS")

@@ -7,51 +7,6 @@ PSObject <- function(
   prior_lambda = prior_inv_gamma(),
   prior_theta = prior_normal()
 ) {
-  
-  get_list_vars <- function(S.model, Y.model){
-    symbol_S <- manipulate_formula(S.model)$symbols$RHS
-    symbol_Y <- manipulate_formula(Y.model)$symbols$RHS
-    return (unique(c(symbol_S, symbol_Y)))
-  }
-  
-  # covariates
-  symbol_list <- get_list_vars(S.model, Y.model)
-  env <- lapply(
-    1:length(symbol_list), 
-    function(i) str2lang(paste('`$', i, '`', sep = ''))
-  )
-  names(env) <- symbol_list
-  
-  substitute_par <- function(call_object, env = c()){
-    return (eval(substitute(
-      substitute(y, env), 
-      list(y = call_object, env = env))
-    ))
-  }
-  
-  unname_symbol <- function(call_object, env_vars) {
-    return (substitute_par(call_object, env_vars))
-  }
-  
-  evaluate_by_pos <- function(call_obj) {
-    if (class(call_obj) == "name"){
-      if (substr(call_obj, 1, 1) == '@'){
-        return (as.call(list(quote(`[`), quote(p), as.numeric(substr(call_obj, 2, 1000)))))
-      }
-      else if (substr(call_obj, 1, 1) == '$'){
-        return (as.call(list(quote(`[`), quote(x), as.numeric(substr(call_obj, 2, 1000)))))
-      }
-      else
-        return (call_obj)
-    }
-    else if (class(call_obj) == "call")
-      return (as.call(
-        lapply(call_obj, evaluate_by_pos)
-      ))
-    else
-      return (call_obj)
-  }
-  
   # analyze monotonicity
   if (monotonicity == "default")
     strata <- c("00", "01", "11")
@@ -62,75 +17,44 @@ PSObject <- function(
   
   # create model for each stratum
   parameter_list <- list()
-  stratum_model_list <- list()
-  outcome_model_list <- list()
-  start_num <- 1
   
   # models for stratum
-  S_model_info <- manipulate_formula(S.model)
-  treatment.var <- S_model_info$symbols$LHS[[1]]
-  intervention.var <- S_model_info$symbols$LHS[[2]]
+  prse_fml_S <- parse.formula(S.model)
+  treatment.var <- prse_fml_S$response[1]
+  intervention.var <- prse_fml_S$response[2]
+  S_has_intercept <- prse_fml_S$has_intercept
+  S_num_of_param <- prse_fml_S$num_of_predictors
   
-  for (stratum in strata) {
-    if (stratum == strata[1]){
-      stratum_model_list[[stratum]] <- list(
-        mean = 0, eval = function(x, p) {
-          return (0)
-        }
-      )
-    }
-    else{
-      new_param <- S_model_info$parameters
-      for (i in 1:length(new_param)){
-        new_param[[i]]$name <- paste(
-          'S', stratum, new_param[[i]]$name, sep = '_'
-        )
-      }
-      parameter_list <- c(parameter_list, new_param)
-      tmp_mean <- unname_symbol(S_model_info$evaluate(start_num), env)
-      stratum_model_list[[stratum]] <- list(
-        mean = tmp_mean,
-        eval = (function(q) {
-          print(q)
-          return (function(x, p){
-            eval(substitute_par(evaluate_by_pos(q), env = list(x = x, p = p)))
-          })})(tmp_mean)
-      )
-      start_num <- start_num + S_model_info$num_of_parameters
-    }
+  for (stratum in strata[-1]) {
+    if (S_has_intercept)
+      parameter_list <- append(parameter_list, list(list(
+        type = "real", prior_type = "prior_intercept", name = "Intrcpt",
+        group = stratum, class = 'S'
+      )))
+    parameter_list <- append(parameter_list, list(list(
+      type = "real_vct", dim = S_num_of_param,
+      prior_type = "prior_coefficient", name = "Coef",
+      group = stratum, class = 'S'
+    )))
   }
   
-  #models for outcome
-  Y_model_info <- manipulate_formula(Y.model)
-  outcome.var <- Y_model_info$symbols$LHS[[1]]
-  if (Y.family$family == "survival")
-    censor.var <- Y_model_info$symbols$LHS[[2]]
-  else
-    censor.var <- NULL
+  # models for outcome
+  prse_fml_Y <- parse.formula(Y.model)
+  outcome.var <- prse_fml_Y$response[1]
+  censor.var <- prse_fml_Y$response[2]
+  Y_params <- get_param_from_model(model(Y.family, Y.model))
   
   for (stratum in strata) {
-    model <- model_template(
-      Y.model, Y.family, stratum %in% ER, stratum
-    )(start_num)
-    parameter_list <- c(parameter_list, model$param_list)
-    get_model <- function(l) {
-      return (l$mean)
+    for (z in 0:1) {
+      if (stratum %in% ER && z == 1)
+        break
+      Y_tmp_params <- Y_params
+      for (i in 1:length(Y_tmp_params)) {
+        Y_tmp_params[[i]]$group <- c(stratum, z)
+        Y_tmp_params[[i]]$class <- 'Y'
+      }
+      parameter_list <- append(parameter_list, Y_tmp_params)
     }
-    outcome_model_list[[stratum]] <- lapply(
-      model$model_list, 
-      function(l)
-        c(
-          lapply(
-            l, 
-            function(x)
-              unname_symbol(x, env)
-          ),
-          eval = function(x, p){
-            eval(substitute_par(evaluate_by_pos(unname_symbol(get_model(l), env)), env = list(x = x, p = p)))
-          }
-        )
-    )
-    start_num <- model$start
   }
   
   # outcome type
@@ -145,11 +69,6 @@ PSObject <- function(
   else if (Y.family$family %in% c("survival"))
     Y_type = "survival"
   
-  for (i in 1:length(parameter_list)) {
-    prior_type <- parameter_list[[i]]$prior_type
-    prior_dist <- eval(str2lang(prior_type))
-    parameter_list[[i]]$prior_dist <- prior_dist
-  }
   
   return (structure(list(
     variables = list(
@@ -158,117 +77,109 @@ PSObject <- function(
       outcome = outcome.var,
       censor = censor.var
     ),
-    symbol_list = symbol_list,
     parameter_list = parameter_list,
-    stratum_model_list = stratum_model_list,
-    outcome_model_list = outcome_model_list,
     outcome_type = Y_type,
-    strata = strata
+    strata = strata,
+    ER = ER,
+    S.model = S.model, 
+    Y.model = Y.model, 
+    Y.family = Y.family,
+    priors = list(
+      prior_intercept = prior_intercept,
+      prior_coefficient = prior_coefficient,
+      prior_sigma = prior_sigma,
+      prior_alpha = prior_alpha,
+      prior_lambda = prior_lambda,
+      prior_theta = prior_theta
+    ),
+    S.dim = prse_fml_S$num_of_predictors,
+    Y.dim = prse_fml_Y$num_of_predictors
   ), class = "PSObject"))
 }
 
+obj <- PSObject(
+  S.model = Z + D ~ X1 * X2,
+  Y.model = Y + C ~ X3 + X4,
+  Y.family = survival(),
+  monotonicity = "default",
+  ER = c('00', '11')
+)
+
 write.pso <- function(obj, filename = NULL){
-  my_deparse <- function(x, ...){
-    paste0(deparse(x, ...), collapse = "")
-  }
-  
-  reformat <- function(call_object){
-    args <- sapply(call_object[-1], my_deparse, backtick = F)
-    str_args <- paste0(args, collapse = ', ')
-    strings <- c(
-      as.character(call_object[[1]]),
-      '(. | ',
-      str_args,
-      ')'
-    )
-    return (paste0(strings, collapse = ''))
-  }
-  
   if (!is.null(filename))
     fileConn <- file(filename)
-  
   indent <- function(str, indent) {
     return (paste0(paste0(rep(' ', indent), collapse = ''), str))
   }
+  
   lines <- c()
-  # Y type
-  lines <- c(lines, paste0("Y: ", obj$outcome_type))
-  # S info
-  lines <- c(lines, paste0("S: ", paste0(strtoi(obj$strata, base = 2), collapse = ' ')))
-  # Covariates
-  lines <- c(lines, "covariate {")
-  if (length(obj$symbol_list) > 0){
-    for (i in 1:length(obj$symbol_list)){
-      lines <- c(
-        lines, 
-        indent(paste0('$', i, ': ', obj$symbol_list[i]), indent = 4)
-      )
-    }
-  }
-  lines <- c(lines, "}")
-  # Parameters
+  Y_def <- paste0("Y: ", obj$outcome_type)
+  S_def <- paste0("S: ", paste0(strtoi(obj$strata, base = 2), collapse = ' '))
+  lines <- c(lines, Y_def, S_def)
   lines <- c(lines, "parameter {")
-  for (i in 1:length(obj$parameter_list)){
-    lines <- c(
-      lines, 
-      indent(
-        paste0('@', i, ': <', 
-               obj$parameter_list[[i]]$type, '> ',
-               obj$parameter_list[[i]]$name
-        ), indent = 4
-      )
+  for (i in 1:length(obj$parameter_list)) {
+    if(obj$parameter_list[[i]]$type == "real_vct") {
+      type_str <- paste0('vector[', obj$parameter_list[[i]]$dim, ']')
+    }
+    else
+      type_str <- obj$parameter_list[[i]]$type
+    name_str <- paste0(
+      c(obj$parameter_list[[i]]$class,
+      paste0(
+        obj$parameter_list[[i]]$group,
+        collapse = '_'
+      ),
+      obj$parameter_list[[i]]$name),
+      collapse = '_'
     )
-  }
-  lines <- c(lines, "}")
-  # Prior Distribution
-  lines <- c(lines, "prior {")
-  for (i in 1:length(obj$parameter_list)){
-    call <- obj$parameter_list[[i]]$prior_dist$call
+    prior <- obj$priors[[obj$parameter_list[[i]]$prior_type]]
+    call <- prior$call
     if (is.null(call))
       tmp_str <- "uniform()"
     else
       tmp_str <- deparse(call, width.cutoff = 500L)
     lines <- c(
       lines, 
-      indent(paste0('@', i, ' ~ ', tmp_str), indent = 4)
+      indent(paste0('<', type_str, '> ', name_str, ' ~ ', tmp_str), indent = 4)
     )
   }
   lines <- c(lines, "}")
+  
   # Strata models
   lines <- c(lines, "strata {")
-  for (i in 1:length(obj$stratum_model_list)){
+  lines <- c(lines, indent(
+    paste0(
+      strtoi(obj$strata[1], 2), ": 0"
+    ), indent = 4
+  ))
+  for (stratum in strata[-1]){
+    prse_fml_S <- parse.formula(obj$S.model)
+    name_intrcpt <- paste('S', stratum, "Intrcpt", sep = '_')
+    name_coef <- paste('S', stratum, "Coef", sep = '_')
+    str_core <- c()
+    if (prse_fml_S$has_intercept)
+      str_core <- c(str_core, name_intrcpt)
+    str_core <- c(str_core, paste0("$ * ", name_coef))
+    str_mean <- paste(str_core, collapse = ' + ')
     lines <- c(
       lines, 
-      indent(
-        paste0(
-          strtoi(names(obj$stratum_model_list)[i], 2), 
-          ": ",
-          paste0(
-            deparse(
-              obj$stratum_model_list[[i]]$mean,
-              backtick = F
-            ), collapse = ''
-          )
-        ), indent = 4
-      )
+      indent(paste0(strtoi(stratum, 2), ": ", str_mean), indent = 4)
     )
   }
   lines <- c(lines, "}")
   # Outcome models
   lines <- c(lines, "outcome {")
-  for (i in 1:length(obj$outcome_model_list)){
+  for (stratum in strata){
     for (j in 0:1){
+      str_index <- paste0(strtoi(stratum, 2), ", ", j, ": ")
+      if (stratum %in% ER)
+        group <- c(stratum, 0)
+      else 
+        group <- c(stratum, j)
+      str_model <- get_dist_str(obj$Y.family, obj$Y.model, group)
       lines <- c(
         lines, 
-        indent(
-          paste0(
-            strtoi(names(obj$outcome_model)[i], 2), 
-            ", ", j,  ": ", 
-            reformat(
-              obj$outcome_model[[i]][[j + 1]]$model
-            )
-          ), indent = 4
-        )
+        indent(paste0(str_index, str_model), indent = 4)
       )
     }
   }
@@ -281,163 +192,4 @@ write.pso <- function(obj, filename = NULL){
   return (lines)
 }
 
-print_future.PSObject <- function(obj){
-  width = 80
-  cat(nice.print("Principle Stratification Object", width, 3, '*'))
-  cat(nice.print(paste0("Treatment : ", obj$treatment_var, '   ', 
-                        "Intervention : ", obj$intervention_var, '   ', 
-                        "Outcome : ", obj$outcome_var, 
-                        ' (', obj$outcome_type,')'), width, 2, ' '))
-  cat('\n')
-  cat(nice.print("Covariate Names", width, 3, '-'))
-  cur_col_num = 5
-  cat("     ")
-  if (length(obj$symbol_list) != 0){
-    for (i in 1:length(obj$symbol_list)){
-      this.length = stringr::str_length(i) + 3 + stringr::str_length(obj$symbol_list[i])
-      if (cur_col_num + this.length >= 85){
-        cat("\n     ")
-        cur_col_num = 5
-      }
-      cat(paste0('$', i, ": ", obj$symbol_list[i]))
-      cur_col_num = cur_col_num + this.length
-      if (cur_col_num < 25){
-        cat(paste0(rep(' ', 25 - cur_col_num), collapse = ''))
-        cur_col_num = 25
-      }
-      else if (cur_col_num < 45){
-        cat(paste0(rep(' ', 45 - cur_col_num), collapse = ''))
-        cur_col_num = 45
-      }
-      else if (cur_col_num < 65){
-        cat(paste0(rep(' ', 65 - cur_col_num), collapse = ''))
-        cur_col_num = 65
-      }
-      else{
-        cur_col_num = 85
-      }
-    }
-  }  
-  cat('\n')
-  cat(nice.print('', width, 0))
-  cat('\n')
-  
-  cat(nice.print("Parameter Names", width, 3, '-'))
-  cur_col_num = 5
-  cat("     ")
-  for (i in 1:length(obj$param_list)){
-    this.length = stringr::str_length(i) + 3 + stringr::str_length(obj$param_list[[i]]$name)
-    if (cur_col_num + this.length >= 85){
-      cat("\n     ")
-      cur_col_num = 5
-    }
-    cat(paste0('@', i, ": ", obj$param_list[[i]]$name))
-    cur_col_num = cur_col_num + this.length
-    if (cur_col_num < 25){
-      cat(paste0(rep(' ', 25 - cur_col_num), collapse = ''))
-      cur_col_num = 25
-    }
-    else if (cur_col_num < 45){
-      cat(paste0(rep(' ', 45 - cur_col_num), collapse = ''))
-      cur_col_num = 45
-    }
-    else if (cur_col_num < 65){
-      cat(paste0(rep(' ', 65 - cur_col_num), collapse = ''))
-      cur_col_num = 65
-    }
-    else{
-      cur_col_num = 85
-    }
-  }
-  cat('\n')
-  cat(nice.print('', width, 0))
-  cat('\n')
-  
-  cat(nice.print("Parameter List", width, 3, '-'))
-  cur_col_num = 5
-  cat("     ")
-  for (i in 1:length(obj$param_list)){
-    this.length = stringr::str_length(i) + 3 + stringr::str_length(obj$param_list[[i]]$model) + 2 + 
-      sum(stringr::str_length(obj$param_list[[i]]$args)) + length(obj$param_list[[i]]$args) + 
-      sum(stringr::str_length(attr(obj$param_list[[i]]$args, "names"))) + 2 * (length(obj$param_list[[i]]$args) - 1)
-    if (cur_col_num + this.length >= 85){
-      cat("\n     ")
-      cur_col_num = 5
-    }
-    cat(paste0('@', i, ": ", obj$param_list[[i]]$model, '('))
-    cat(paste0(paste(
-      attr(obj$param_list[[i]]$args, "names"),
-      obj$param_list[[i]]$args,
-      sep = '='
-    ), collapse = ", "))
-    cat(')')
-    cur_col_num = cur_col_num + this.length
-    if (cur_col_num < 45){
-      cat(paste0(rep(' ', 45 - cur_col_num), collapse = ''))
-      cur_col_num = 45
-    }
-    else{
-      cur_col_num = 85
-    }
-  }
-  cat('\n')
-  cat(nice.print('', width, 0))
-  cat('\n')
-  cat(nice.print('Strata', width, 3))
-  n_keep <- stringr::str_length(obj$treatment_var) + 8
-  half_width <- (width - 6 - n_keep) %/% 2
-  cat(paste0(rep(' ', n_keep), collapse = ''))
-  cat('++')
-  cat(nice.print(paste0(obj$treatment_var, "[1] = 0"), half_width, 2, '+', newline = F))
-  cat('++')
-  cat(nice.print(paste0(obj$treatment_var, "[1] = 1"), half_width, 2, '+', newline = F))
-  cat('++')
-  cat('\n')
-  cat(paste0(paste0(rep(' ', n_keep), collapse = ''), '++', 
-             paste0(rep(' ', half_width), collapse = ''), '++', 
-             paste0(rep(' ', half_width), collapse = ''), '++', '\n', collapse = ''))
-  cat(paste0(paste0(obj$treatment_var, "[0] = 0 "), '++', 
-             nice.print(paste0(
-               ifelse("00" %in% obj$strata, "Never-taker", ""),
-               ifelse('00' %in% obj$ER, '*', '')), half_width, 0, ' ', newline = F), '++', 
-             nice.print(paste0(
-               ifelse("01" %in% obj$strata, "Complier", ""),
-               ifelse('01' %in% obj$ER, '*', '')), half_width, 0, ' ', newline = F), '++',
-             '\n', collapse = ''))
-  cat(paste0(paste0(rep(' ', n_keep), collapse = ''), '++', 
-             paste0(rep(' ', half_width), collapse = ''), '++', 
-             paste0(rep(' ', half_width), collapse = ''), '++', '\n', collapse = ''))
-  cat(paste0(paste0(rep(' ', n_keep), collapse = ''), 
-             paste0(rep('+', half_width * 2 + 6), collapse = ''), '\n'))
-  cat(paste0(paste0(rep(' ', n_keep), collapse = ''), '++', 
-             paste0(rep(' ', half_width), collapse = ''), '++', 
-             paste0(rep(' ', half_width), collapse = ''), '++', '\n', collapse = ''))
-  cat(paste0(paste0(obj$treatment_var, "[0] = 1 "), '++', 
-             nice.print(paste0(
-               ifelse("10" %in% obj$strata, "Defier", ""),
-               ifelse('10' %in% obj$ER, '*', '')), half_width, 0, ' ', newline = F), '++', 
-             nice.print(paste0(
-               ifelse("11" %in% obj$strata, "Always-taker", ""),
-               ifelse('11' %in% obj$ER, '*', '')), half_width, 0, ' ', newline = F), '++',
-             '\n', collapse = ''))
-  cat(paste0(paste0(rep(' ', n_keep), collapse = ''), '++', 
-             paste0(rep(' ', half_width), collapse = ''), '++', 
-             paste0(rep(' ', half_width), collapse = ''), '++', '\n', collapse = ''))
-  cat(paste0(paste0(rep(' ', n_keep), collapse = ''), 
-             paste0(rep('+', half_width * 2 + 6), collapse = ''), '\n'))
-  cat(paste0(paste0(rep(' ', n_keep), collapse = ''), ' * Exclusion Restriction holds.\n'))
-  
-  cat('\n')
-  cat(nice.print("S-model", width))
-  for (i in 1:length(obj$S_list)){
-    cat(paste0('log Pr(S = ', names(obj$S_list)[i], ') = ', obj$S_list[[i]]$name, ' + C\n'))
-  }
-  cat('\n')
-  
-  cat(nice.print("Y-model", width))
-  for (i in 1:length(obj$S_list)){
-    cat(paste0('log Pr(. | S = ', names(obj$Y_list)[i], ', Z = 0) = ', obj$Y_list[[i]][[1]]$name, ' + C\n'))
-    cat(paste0('log Pr(. | S = ', names(obj$Y_list)[i], ', Z = 1) = ', obj$Y_list[[i]][[2]]$name, ' + C\n'))
-  }
-  cat('\n')
-}
+write.pso(obj, "survival.pso")

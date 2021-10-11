@@ -19,56 +19,27 @@ std::string concat(Iterable container, const std::string& delim, func f){
   return res;
 }
 
-std::string replace(const std::string& text, bool single = false){
+std::string replace(const std::string& text, const char cls){
   std::string res;
-  std::string tmp;
-  char cur_state = 0;
   bool replaceable = true;
   for (char c: text){
     if (c == '|')
       replaceable = false;
-    if (c == '.' && replaceable){
-      res += "Y[n]";
+    if (c == '.') {
+      res += replaceable ? "Y[n]" : "C[n]";
       continue;
     }
-    if (c == '.'){
-      res += "C[n]";
-      continue;
+    if (c == '$'){
+      res += std::string("X") + cls + "[n]";
     }
-    if (cur_state != 0){
-      if (c >= '0' && c <= '9') {
-        tmp += c;
-        continue;
-      }
-      else{
-        if (cur_state == '@')
-          res += "par_" + tmp;
-        else
-          res += "X[n, " + tmp + "]";
-        tmp = "";
-      }
-    }
-    if (c == '@'){
-      cur_state = '@';
-    }
-    else if (c == '$'){
-      cur_state = '$';
-    }
-    else {
-      cur_state = 0;
+    else
       res += c;
-    }
   }
-  if (cur_state == '@')
-    res += "par_" + tmp;
-  else if (cur_state == '$')
-    res += "X[n, " + tmp + "]";
   return res;
 }
 
 struct Object{
   std::string Y_type;
-  std::vector<std::string> X_name;
   std::vector<std::string> P_name;
   std::vector<std::string> P_type;
   std::vector<std::string> P_model;
@@ -101,10 +72,10 @@ std::string Object::to_string_data() const {
   tmp.emplace_back("int<lower=0, upper=1> D[N];");
   if (this->Y_type == "survival")
     tmp.emplace_back("int<lower=0, upper=1> C[N];");
-  tmp.push_back(
-    std::string("real X[N, ") +
-      std::to_string(this->X_name.size()) +
-      "];");
+  tmp.emplace_back("int<lower=0> DimS;");
+  tmp.emplace_back("int<lower=0> DimY;");
+  tmp.emplace_back("matrix[N, DimS] XS;");
+  tmp.emplace_back("matrix[N, DimY] XY;");
   std::string t;
   if (this->Y_type == "continuous")
     t = "real";
@@ -150,7 +121,9 @@ std::string Object::to_string_parameters() const {
       t = "real";
     else if (this->P_type[i] == "positive")
       t = "real<lower=0>";
-    tmp.push_back(t + " par_" + std::to_string(i + 1) + ';');
+    else
+      t = this->P_type[i];
+    tmp.push_back(t + " " + this->P_name[i] + ';');
   }
   std::string res("parameters {\n");
   for (auto & s : tmp){
@@ -166,7 +139,7 @@ std::string Object::_to_string_prior() const {
     if (this->P_model[i] == "uniform()")
       continue;
     res += std::string(4, ' ') +
-      "par_" + std::to_string(i + 1) + " ~ " +
+      this->P_name[i] + " ~ " +
       this->P_model[i] + ";\n";
   }
   return res;
@@ -300,28 +273,16 @@ std::vector<std::string> split(const std::string& str, char delim){
 }
 
 template <typename T>
-T parse_covariate(T it, Object& obj){
+T parse_parameter_prior(T it, Object& obj){
   while (*(++it) != "}"){
-    obj.X_name.push_back(split(*it, ':')[1]);
-  }
-  return it;
-}
-
-template <typename T>
-T parse_parameter(T it, Object& obj){
-  while (*(++it) != "}"){
-    auto tokens = split(split(*it, ':')[1], ' ');
-    auto type = tokens[0].substr(1, tokens[0].size() - 2);
-    obj.P_name.push_back(tokens[1]);
+    auto info = split(*it, '~');
+    auto info_left = split(info[0], ' ');
+    auto type = info_left[0].substr(1, info_left[0].size() - 2);
+    auto name = info_left[1];
+    auto prior = info[1];
+    obj.P_name.push_back(name);
     obj.P_type.push_back(type);
-  }
-  return it;
-}
-
-template <typename T>
-T parse_prior(T it, Object& obj) {
-  while (*(++it) != "}") {
-    obj.P_model.push_back(split(*it, '~')[1]);
+    obj.P_model.push_back(prior);
   }
   return it;
 }
@@ -330,7 +291,7 @@ template <typename T>
 T parse_strata(T it, Object& obj) {
   while (*(++it) != "}") {
     auto tokens = split(*it, ':');
-    obj.S_model[std::stoi(tokens[0])] = replace(tokens[1], obj.X_name.size() == 1);
+    obj.S_model[std::stoi(tokens[0])] = replace(tokens[1], 'S');
   }
   return it;
 }
@@ -342,7 +303,7 @@ T parse_outcome(T it, Object& obj) {
     auto token_ids = split(tokens[0], ',');
     obj.Y_model[
     std::make_pair(std::stoi(token_ids[0]), std::stoi(token_ids[1]))
-    ] = replace(tokens[1], obj.X_name.size() == 1);
+    ] = replace(tokens[1], 'Y');
   }
   return it;
 }
@@ -364,12 +325,8 @@ Object parse(const std::vector<std::string>& buffer){
           obj.ZDS[std::make_pair(z, z == 0? num >> 1: num & 1)].push_back(num);
         }
       }
-    } else if (it->rfind("covariate", 0) == 0) {
-      it = parse_covariate(it, obj);
     } else if (it->rfind("parameter", 0) == 0) {
-      it = parse_parameter(it, obj);
-    } else if (it->rfind("prior", 0) == 0){
-      it = parse_prior(it, obj);
+      it = parse_parameter_prior(it, obj);
     } else if (it->rfind("strata", 0) == 0){
       it = parse_strata(it, obj);
     } else if (it->rfind("outcome", 0) == 0){

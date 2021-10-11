@@ -18,7 +18,10 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
     Z = dplyr::pull(data, obj$variables$treatment),
     D = dplyr::pull(data, obj$variables$intervention),
     Y = dplyr::pull(data, obj$variables$outcome),
-    X = dplyr::select(data, as.character(obj$symbol_list))
+    DimS = obj$S.dim,
+    DimY = obj$Y.dim,
+    XS = model.matrix(update.formula(obj$S.model, . ~ . - 1), data),
+    XY = model.matrix(update.formula(obj$Y.model, . ~ . - 1), data)
   )
   if (!is.null(obj$variables$censor))
     df$C <- dplyr::pull(data, obj$variables$censor)
@@ -29,56 +32,6 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
   stan_code <- paste(readLines(paste0(model_name, '.stan')), collapse = '\n')
   posterior_samples <- do.call(rbind, rstan::extract(stanfit))
   
-  avg <- function(par) {
-    mat <- as.matrix(df$X)
-    single_outcome <- function(stratum) {
-      mean1 <- apply(mat, 1, function(x) obj$outcome_model_list[[stratum]][[2]]$eval(x, par))
-      mean0 <- apply(mat, 1, function(x) obj$outcome_model_list[[stratum]][[1]]$eval(x, par))
-      prob <- apply(mat, 1, function(x) obj$stratum_model_list[[stratum]]$eval(x, par))
-      prob <- prob - max(prob)
-      if (Y.family == "survival"){
-        mean1 <- exp(mean1)
-        mean0 <- exp(mean0)
-      }
-      res1 <- sum(mean1 * exp(prob)) / sum(exp(prob))
-      res0 <- sum(mean0 * exp(prob)) / sum(exp(prob))
-      return (c(res1, res0))
-    }
-    resmat <- matrix(nrow = 4, ncol = length(obj$strata))
-    dimnames(resmat) <- list(c('Z = 0', 'Z = 1', 'ATE', 'Prob'), obj$strata)
-    for (stratum in obj$strata){
-      resmat[1:2, stratum] <- single_outcome(stratum)
-    }
-    
-    if (Y.family == "survival")
-      resmat[3, ] <- resmat[1, ] / resmat[2, ] # ? should do this?
-    else
-      resmat[3, ] <- resmat[1, ] - resmat[2, ]
-    
-    # probability
-    get_prob <- function(x) {
-      log_probs <- sapply(obj$strata, function(s) obj$stratum_model_list[[s]]$eval(x, par))
-      log_probs <- log_probs - max(log_probs)
-      return (exp(log_probs) / sum(exp(log_probs)))
-    }
-    resmat[4, ] <- rowMeans(apply(mat, 1, get_prob))
-    
-    return (resmat)
-  }
-  
-  causal_effects <- pbapply::pbapply(posterior_samples, 2, avg)
-  mean_effect <- apply(causal_effects, 1, mean)
-  se_effect <- apply(causal_effects, 1, sd)
-  effect_table <- matrix(nrow = 8, ncol = length(obj$strata))
-  dimnames(effect_table) <- list(
-    c("Prob (mean)", "Prob (sd)", "Z=1 (mean)", "Z=1 (sd)", "Z=0 (mean)", "Z=0 (sd)", "ATE (mean)", "ATE (sd)"), obj$strata
-  )
-  effect_table[c(3, 5, 7, 1), ] <- matrix(mean_effect, nrow = 4, byrow = F)
-  effect_table[c(4, 6, 8, 2), ] <- matrix(se_effect, nrow = 4, byrow = F)
-  
-  param_names <- c(sapply(obj$parameter_list, function(x) x$name), "__lp")
-  rownames(posterior_samples) <- param_names
-  
   res <- list(
     data = df,
     stanfit = stanfit,
@@ -86,8 +39,6 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
     pso_code = pso_code,
     stan_code = stan_code,
     post_samples = posterior_samples,
-    causal_effects = causal_effects,
-    effect_table = effect_table
   )
   class(res) <- "PStrata"
   return (res)
