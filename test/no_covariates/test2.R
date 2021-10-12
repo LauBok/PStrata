@@ -45,7 +45,7 @@ data$Y <- ifelse(data$S == 1,
 write.csv(data, "test/no_covariates/data2.csv", row.names = F)
 
 
-result <- PStrata::PStrata(
+result <- PStrata(
   S.formula = Z + D ~ 1,
   Y.formula = Y ~ 1,
   Y.family = gaussian(),
@@ -56,13 +56,13 @@ result <- PStrata::PStrata(
   chains = 1, warmup = 200, iter = 500
 )
 
-
+result
 plot(result)
 
 
 # if misspecified ER
 
-result2 <- PStrata::PStrata(
+result2 <- PStrata(
   S.formula = Z + D ~ 1,
   Y.formula = Y ~ 1,
   Y.family = gaussian(),

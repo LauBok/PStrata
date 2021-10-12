@@ -23,8 +23,8 @@ get_one <- function(log_p1, log_p2, log_p3, log_p4) {
 data$S <- sapply(
   1:n,
   function(i) get_one(
-    log(0.3), 
-    log(0.7),
+    log(0.25), 
+    log(0.75),
     NA,
     NA
   )
@@ -40,7 +40,7 @@ data$Y <- ifelse(data$S == 1,
 write.csv(data, "test/no_covariates/data1.csv", row.names = F)
 
 
-result <- PStrata::PStrata(
+result <- PStrata(
   S.formula = Z + D ~ 1,
   Y.formula = Y ~ 1,
   Y.family = gaussian(),
@@ -51,5 +51,5 @@ result <- PStrata::PStrata(
   chains = 1, warmup = 200, iter = 500
 )
 
-
+result
 plot(result)

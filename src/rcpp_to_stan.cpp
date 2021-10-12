@@ -44,6 +44,8 @@ struct Object{
   std::vector<std::string> P_type;
   std::vector<std::string> P_model;
   std::vector<int> S;
+  int Sdim;
+  int Ydim;
   std::map<std::pair<int, int>, std::vector<int>> ZDS;
   std::map<int, std::string> S_model;
   std::map<std::pair<int, int>, std::string> Y_model;
@@ -72,10 +74,10 @@ std::string Object::to_string_data() const {
   tmp.emplace_back("int<lower=0, upper=1> D[N];");
   if (this->Y_type == "survival")
     tmp.emplace_back("int<lower=0, upper=1> C[N];");
-  tmp.emplace_back("int<lower=0> DimS;");
-  tmp.emplace_back("int<lower=0> DimY;");
-  tmp.emplace_back("matrix[N, DimS] XS;");
-  tmp.emplace_back("matrix[N, DimY] XY;");
+  if (this->Sdim)
+    tmp.emplace_back("matrix[N, " + std::to_string(this->Sdim) + "] XS;");
+  if (this->Ydim)
+    tmp.emplace_back("matrix[N, " + std::to_string(this->Ydim) + "] XY;");
   std::string t;
   if (this->Y_type == "continuous")
     t = "real";
@@ -325,6 +327,11 @@ Object parse(const std::vector<std::string>& buffer){
           obj.ZDS[std::make_pair(z, z == 0? num >> 1: num & 1)].push_back(num);
         }
       }
+    } else if (it->rfind("Dim: ", 0) == 0) {
+      // Dims
+      auto tokens = split(split(*it, ':')[1], ' ');
+      obj.Sdim = std::stoi(tokens[0]);
+      obj.Ydim = std::stoi(tokens[1]);
     } else if (it->rfind("parameter", 0) == 0) {
       it = parse_parameter_prior(it, obj);
     } else if (it->rfind("strata", 0) == 0){

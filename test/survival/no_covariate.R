@@ -21,7 +21,7 @@ get_one <- function(log_p1, log_p2, log_p3, log_p4) {
 sample_survival <- function(n, theta_1, exponential){
   # CDF: 1 - exp(-exp(theta_2)*t^(exp(theta_1)))
   u <- runif(n)
-  t <- (-log(u) / exp(exponential))^exp(-theta_1)
+  t <- (-log(u) / exp(exponential + theta_1))^exp(-theta_1)
   return (t)
 }
 
@@ -30,8 +30,8 @@ data$S <- sapply(
   1:n,
   function(i) get_one(
     log(0.3), 
-    log(0.2),
-    log(0.5),
+    log(0.7),
+    NA,
     NA
   )
 )
@@ -41,13 +41,13 @@ data$D <- ifelse(data$Z == 1,
                  ifelse(data$S %in% c(3, 4), 1, 0))
 
 data$Y <- ifelse(data$S == 1,
-                 sample_survival(n, 1, 1), 
-                 ifelse(data$S == 2,
-                        sample_survival(n, 1, 4 - 1 * data$Z),
-                        sample_survival(n, 1, 6))
-)
+                 sample_survival(n, 1, 0.3), 
+                 sample_survival(n, 1, 6 - 3 * data$Z))
 
 data$C <- rbinom(n, 1, 0)
+
+ggplot(data) + geom_density(aes(x = Y, color = as.factor(Z))) +
+  facet_wrap(~as.factor(S))
 
 write.csv(data, "test/survival/data_no_covariate.csv", row.names = F)
 
@@ -55,7 +55,7 @@ PSObject(
   S.model = Z + D ~ 1,
   Y.model = Y + C ~ 1,
   Y.family = survival(),
-  monotonicity = "default",
+  monotonicity = "strong",
   ER = c('00')
 ) -> obj
 
@@ -64,11 +64,12 @@ result <- PStrata(
   Y.formula = Y + C ~ 1,
   Y.family = survival(),
   data = data,
-  monotonicity = "default",
-  ER = c('00', '11'),
-  prior_coefficient = prior_normal(0, 10),
+  monotonicity = "strong",
+  ER = c('00'),
+  prior_intercept = prior_normal(0, 1),
+  prior_coefficient = prior_normal(0, 1),
   trunc = FALSE,
-  chains = 1, warmup = 200, iter = 500
+  chains = 1, warmup = 1000, iter = 3000
 )
 
 result

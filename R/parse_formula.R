@@ -22,4 +22,3 @@ parse.formula <- function(formula) {
     num_of_predictors = num_of_predictors
   ))
 }
-

@@ -56,7 +56,8 @@ get_dist_str <- function(family, Y.formula, group){
   str_core <- c()
   if (prse_fml_Y$has_intercept)
     str_core <- c(str_core, name_intrcpt)
-  str_core <- c(str_core, paste0("$ * ", name_coef))
+  if (prse_fml_Y$num_of_predictors)
+    str_core <- c(str_core, paste0("$ * ", name_coef))
   str_mean <- paste(str_core, collapse = ' + ')
   group_prefix <- paste(c("Y", group, ""), collapse = '_')
   
@@ -64,7 +65,7 @@ get_dist_str <- function(family, Y.formula, group){
     str_sigma <- paste0(group_prefix, "Sigma")
     if (link == "identity")
       str_inner <- str_mean
-    else if (link == 'qlog')
+    else if (link == 'log')
       str_inner <- paste0("exp(", str_mean, ")")
     else if (link == 'inverse')
       str_inner <- paste0("1/(", str_mean, ")")

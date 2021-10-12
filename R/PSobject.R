@@ -97,14 +97,6 @@ PSObject <- function(
   ), class = "PSObject"))
 }
 
-obj <- PSObject(
-  S.model = Z + D ~ X1 * X2,
-  Y.model = Y + C ~ X3 + X4,
-  Y.family = survival(),
-  monotonicity = "default",
-  ER = c('00', '11')
-)
-
 write.pso <- function(obj, filename = NULL){
   if (!is.null(filename))
     fileConn <- file(filename)
@@ -115,9 +107,12 @@ write.pso <- function(obj, filename = NULL){
   lines <- c()
   Y_def <- paste0("Y: ", obj$outcome_type)
   S_def <- paste0("S: ", paste0(strtoi(obj$strata, base = 2), collapse = ' '))
-  lines <- c(lines, Y_def, S_def)
+  Dim_def <- paste0("Dim: ", obj$S.dim, " ", obj$Y.dim)
+  lines <- c(lines, Y_def, S_def, Dim_def)
   lines <- c(lines, "parameter {")
   for (i in 1:length(obj$parameter_list)) {
+    if(obj$parameter_list[[i]]$type == "real_vct" && obj$parameter_list[[i]]$dim == 0)
+      next
     if(obj$parameter_list[[i]]$type == "real_vct") {
       type_str <- paste0('vector[', obj$parameter_list[[i]]$dim, ']')
     }
@@ -152,14 +147,15 @@ write.pso <- function(obj, filename = NULL){
       strtoi(obj$strata[1], 2), ": 0"
     ), indent = 4
   ))
-  for (stratum in strata[-1]){
+  for (stratum in obj$strata[-1]){
     prse_fml_S <- parse.formula(obj$S.model)
     name_intrcpt <- paste('S', stratum, "Intrcpt", sep = '_')
     name_coef <- paste('S', stratum, "Coef", sep = '_')
     str_core <- c()
     if (prse_fml_S$has_intercept)
       str_core <- c(str_core, name_intrcpt)
-    str_core <- c(str_core, paste0("$ * ", name_coef))
+    if (prse_fml_S$num_of_predictors)
+      str_core <- c(str_core, paste0("$ * ", name_coef))
     str_mean <- paste(str_core, collapse = ' + ')
     lines <- c(
       lines, 
@@ -169,10 +165,10 @@ write.pso <- function(obj, filename = NULL){
   lines <- c(lines, "}")
   # Outcome models
   lines <- c(lines, "outcome {")
-  for (stratum in strata){
+  for (stratum in obj$strata){
     for (j in 0:1){
       str_index <- paste0(strtoi(stratum, 2), ", ", j, ": ")
-      if (stratum %in% ER)
+      if (stratum %in% obj$ER)
         group <- c(stratum, 0)
       else 
         group <- c(stratum, j)
@@ -191,5 +187,3 @@ write.pso <- function(obj, filename = NULL){
   }
   return (lines)
 }
-
-write.pso(obj, "survival.pso")
