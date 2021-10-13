@@ -240,6 +240,7 @@ plot.post_survival <- function(result, t_range = c(0, 10), t_count = 100) {
   p0 <- ggplot(long_prob) + 
     geom_density(aes(x = value, color = name)) +
     geom_histogram(aes(x = value, y = after_stat(density), fill = name), alpha = 0.3) +
+    guides(color = "none", fill = "none") +
     ggtitle("Probability") + xlab("probability")
   df_1 <- all_df %>% filter(var != "Hazard_Ratio") %>%
     group_by(name, var, t) %>%
@@ -250,11 +251,11 @@ plot.post_survival <- function(result, t_range = c(0, 10), t_count = 100) {
     facet_wrap(~name) + ggtitle("Hazard") + xlab("time") + ylab("hazard")
   
   df_2 <- all_df %>% filter(var == "Hazard_Ratio") %>%
-    group_by(var, t) %>%
+    group_by(name, var, t) %>%
     summarize(mean = mean(value), lwr = quantile(value, 0.025), upr = quantile(value, 0.975))
   p2 <- ggplot(df_2) + 
-    geom_line(aes(x = t, y = mean)) +
-    geom_ribbon(aes(x = t, ymin = lwr, ymax = upr), alpha = 0.3) +
+    geom_line(aes(x = t, y = mean, color = name)) +
+    geom_ribbon(aes(x = t, ymin = lwr, ymax = upr, fill = name), alpha = 0.3) +
     ggtitle("Hazard Ratio") + xlab("time") + ylab("hazard ratio")
   (p0 + p2) / p1
 }
