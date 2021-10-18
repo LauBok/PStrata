@@ -165,6 +165,25 @@ post_Y <- function(obj, post_samples, df) {
   }
 }
 
+post_stratum_samples <- function(obj, post_samples, df) {
+  prob <- post_prob(obj, post_samples, df)
+  apply(prob, c(2,3), function(p) (1:dim(prob)[1]) %*% rmultinom(1,1,p))
+}
+
+plot_prob_prob_one <- function(num_draw, obj, post_samples, df) {
+  post_stratum <- post_stratum_samples(obj, post_samples, df)[, num_draw]
+  prob <- post_prob(obj, post_samples, df)[,, num_draw]
+  data <- bind_cols(as.data.frame(t(prob)), stratum = post_stratum)
+  colnames(data) <- c(obj$strata, "stratum")
+  data$stratum <- obj$strata[data$stratum]
+  data_plot <- pivot_longer(data, -stratum)
+  colnames(data_plot) <- c("sample", "stratum", "prob")
+  ggplot(data_plot) + 
+    geom_histogram(aes(prob, y = ..density.., fill = stratum), alpha = 0.4) + 
+    geom_density(aes(prob, color = stratum)) + 
+    facet_wrap(~sample)
+}
+
 summarize_result <- function(post_prob_raw, post_prob, post_Y) {
   Y0 <- post_Y[, "0", ,]
   Y1 <- post_Y[, "1", ,]
