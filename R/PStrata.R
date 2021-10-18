@@ -115,7 +115,7 @@ post_prob <- function(obj, post_samples, df) {
   results <- post_prob_raw(obj, post_samples, df)
   consistency <- array(1, dim = dim(results),
                        dimnames = list(obj$strata, NULL, NULL))
-  for (stratum in obj$strata[-1]) {
+  for (stratum in obj$strata) {
     # consistency
     consistency[stratum, , ] <- ifelse(substring(stratum, df$Z+1, df$Z+1) == df$D, 1, 0)
   }
@@ -170,9 +170,9 @@ post_stratum_samples <- function(obj, post_samples, df) {
   apply(prob, c(2,3), function(p) (1:dim(prob)[1]) %*% rmultinom(1,1,p))
 }
 
-plot_prob_prob_one <- function(num_draw, obj, post_samples, df) {
-  post_stratum <- post_stratum_samples(obj, post_samples, df)[, num_draw]
-  prob <- post_prob(obj, post_samples, df)[,, num_draw]
+plot_prob_prob_one <- function(num_draw, post_prob, post_stratum_samples) {
+  post_stratum <- post_stratum_samples[, num_draw]
+  prob <- post_prob[,, num_draw]
   data <- bind_cols(as.data.frame(t(prob)), stratum = post_stratum)
   colnames(data) <- c(obj$strata, "stratum")
   data$stratum <- obj$strata[data$stratum]
