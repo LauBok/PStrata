@@ -1,4 +1,4 @@
-parse.formula <- function(formula) {
+parse.formula <- function(formula, data) {
   symbols_AST <- function(AST) {
     if (is.name(AST))
       return (as.character(AST))
@@ -12,13 +12,16 @@ parse.formula <- function(formula) {
   LHS_symbol <- symbols_AST(LHS)
   terms <- terms.formula(formula)
   has_intercept <- attr(terms, "intercept")
-  predictors <- attr(terms, "term.labels")
-  num_of_predictors <- length(predictors)
+  model_matrix <- model.matrix(
+    update.formula(formula, ~ . - 1), 
+    data
+  )
   return (list(
     formula = formula, 
     response = LHS_symbol,
     has_intercept = has_intercept,
-    predictors = predictors,
-    num_of_predictors = num_of_predictors
+    predictors = colnames(model_matrix),
+    num_of_predictors = ncol(model_matrix),
+    model_matrix = model_matrix
   ))
 }

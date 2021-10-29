@@ -1,25 +1,3 @@
-get_data <- function(PSobject, data) {
-  df <- list(
-    N = nrow(data), 
-    Z = dplyr::pull(data, PSobject$variables$treatment),
-    D = dplyr::pull(data, PSobject$variables$intervention),
-    Y = dplyr::pull(data, PSobject$variables$outcome)
-  )
-  if (!is.na(PSobject$variables$censor))
-    df$C <- dplyr::pull(data, PSobject$variables$censor)
-  if (PSobject$S.dim){
-    df$XS <- model.matrix(PSobject$S.model, data)
-    if (colnames(df$XS) == '(Intercept)')
-      df$XS <- df$XS[, -1]
-  }
-  if (PSobject$Y.dim){
-    df$XY <- model.matrix(PSobject$S.model, data)
-    if (colnames(df$XY) == '(Intercept)')
-      df$XY <- df$XY[, -1]
-  }
-  return (df)
-}
-
 generate_names <- function(class, group, name, dim = NULL) {
   tmp_str <- paste0(c(class, group, name), collapse = '_')
   if (!is.null(dim)){
@@ -32,15 +10,192 @@ generate_names <- function(class, group, name, dim = NULL) {
     return (tmp_str)
 }
 
-get_posterior_samples <- function(stanfit, obj) {
-  posterior_samples <- do.call(cbind, rstan::extract(stanfit))
+PSSampling <- function(PSobject, model_name = "unnamed", ...) {
+  write.pso(PSobject, paste0(model_name, ".pso"))
+  to_stan(model_name)
+  stanfit <- rstan::stan(paste0(model_name, ".stan"), 
+                         data = PSobject$data, 
+                         ...
+  )
+  post_samples <- do.call(cbind, rstan::extract(stanfit))
   param_names <- c()
-  for (param in obj$parameter_list) {
-    param_names <- c(param_names, generate_names(param$class, param$group, param$name, param$dim))
+  for (param in PSobject$parameter_list) {
+    param_names <- c(param_names, 
+                     generate_names(param$class, param$group, param$name, param$dim))
   }
   param_names <- c(param_names, '__lp')
-  colnames(posterior_samples) <- param_names
-  return (posterior_samples)
+  colnames(post_samples) <- param_names
+  return (structure(
+    list(
+      stanfit = stanfit,
+      post_samples = post_samples
+    ),
+    class = "PSsample"
+  ))
+}
+
+PSSampleEx <- function(PSobject, PSsample) {
+  exponential <- function(log_prob_array) {
+    max_log_prob <- apply(log_prob_array, c(2, 3), max)
+    return (exp(sweep(log_prob_array, c(2, 3), max_log_prob)))
+  }
+  standardize <- function(prob_array) {
+    sum_prob <- apply(prob_array, c(2, 3), sum)
+    return (sweep(prob_array, c(2, 3), sum_prob, FUN = '/'))
+  }
+  
+  dimension <- c(length(PSobject$PSsettings$strata), 
+                 PSobject$PScovs$ncount, nrow(PSsample$post_samples))
+  log_post_prob_unadjusted <- array(
+    0, dim = dimension, dimnames = list(PSobject$PSsettings$strata, NULL, NULL)
+  ) # log_probability
+  for (stratum in PSobject$PSsettings$strata[-1]) {
+    value <- 0
+    if (generate_names('S', stratum, 'Intrcpt') %in% colnames(PSsample$post_samples))
+      intercept <- PSsample$post_samples[, 
+                            generate_names('S', stratum, 'Intrcpt'),
+                            drop = F]
+    else
+      intercept <- 0
+    value <- value + rep(1, each = PSobject$PScovs$ncount) %*% t(intercept)
+    if (PSobject$PScovs$S.dim > 0){
+      pars <- PSsample$post_samples[, generate_names(
+        'S', stratum, 'Coef', PSobject$PScovs$S.dim
+      )]
+      value <- value + PSobject$data$XS %*% t(pars)
+    }
+    log_post_prob_unadjusted[stratum, , ] <- value
+  }
+  
+  # consistency matrix
+  cs_mat <- array(
+    1, dim = dimension, dimnames = list(PSobject$PSsettings$strata, NULL, NULL)
+  )
+  for (stratum in PSobject$PSsettings$strata) {
+    cs_mat[stratum, , ] <- ifelse(
+      substring(stratum, PSobject$data$Z+1, PSobject$data$Z+1) == PSobject$data$D, 1, 0
+    )
+  }
+  
+  post_prob_unadjusted <- standardize(exponential(log_post_prob_unadjusted))
+  post_prob_consistent <- standardize(post_prob_unadjusted * cs_mat)
+  post_stratum_draw <- apply(
+    post_prob_consistent, c(2,3), 
+    function(p) 
+      PSobject$PSsettings$strata[(1:dim(post_prob_consistent)[1]) %*% rmultinom(1,1,p)]
+  )
+  
+  post_outcome_mean <- array(
+    0, dim = c(dimension[1], 2, dimension[-1]),
+    dimnames = list(PSobject$PSsettings$strata, c("0", "1"), NULL, NULL)
+  )
+  theta <- array(
+    0, dim = c(dimension[1], 2, dimension[3]),
+    dimnames = list(PSobject$PSsettings$strata, c("0", "1"), NULL)
+  )
+  for (stratum in PSobject$PSsettings$strata) {
+    for (z in c("0", "1")){
+      zz <- ifelse(stratum %in% PSobject$PSsettings$ER, "0", z)
+      value <- 0
+      if (generate_names('Y', c(stratum, zz), 'Intrcpt') %in% colnames(PSsample$post_samples))
+        intercept <- PSsample$post_samples[, 
+                                           generate_names('Y', c(stratum, zz), 'Intrcpt'), 
+                                           drop = F]
+      else
+        intercept <- 0
+      value <- value + rep(1, each = PSobject$PScovs$ncount) %*% t(intercept)
+      if (PSobject$PScovs$Y.dim > 0){
+        pars <- PSsample$post_samples[, generate_names('Y', c(stratum, zz), 'Coef', PSobject$PScovs$Y.dim)]
+        value <- value + PSobject$data$XY %*% t(pars)
+      }
+      if (PSobject$PSsettings$Y.family$family == "survival") {
+        theta[stratum, z, ] <- PSobject$post_samples[, generate_names('Y', c(stratum, zz), 'Theta')]
+      }
+      post_outcome_mean[stratum, z, , ] <- value
+    }
+  }
+  if (PSobject$PSsettings$Y.family$family != "survival") {
+    post_outcome <- list(
+      outcome = PSobject$PSsettings$Y.family$linkinv(post_outcome_mean)
+    )
+  }
+  else {
+    post_outcome <- list(
+      outcome = post_outcome_mean,
+      theta = theta
+    )
+  }
+
+  return (structure(
+    list(
+      prob_unadj = post_prob_unadjusted,
+      prob_const = post_prob_consistent,
+      consistency = cs_mat,
+      stratum_draw = post_stratum_draw,
+      outcome = post_outcome
+    ),
+    class = "PSSampleEx",
+    survival = PSobject$PSsettings$Y.family$family == "survival"
+  ))
+}
+
+PSSummary <- function(PSsampleEx){
+  if (attr(PSsampleEx, "survival"))
+    return (PSSummary.survival(PSsampleEx))
+  else
+    return (PSSummary.nonsurvival(PSsampleEx))
+}
+
+PSSummary.nonsurvival <- function(PSsampleEx) {
+  Y0 <- PSsampleEx$outcome$outcome[, "0", ,]
+  Y1 <- PSsampleEx$outcome$outcome[, "1", ,]
+  sum_Y0 <- apply(Y0 * PSsampleEx$prob_const, c(1, 3), sum)
+  sum_Y1 <- apply(Y1 * PSsampleEx$prob_const, c(1, 3), sum)
+  sum_post_prob <- apply(PSsampleEx$prob_const, c(1, 3), sum)
+  mean_Y0 <- sum_Y0 / sum_post_prob
+  mean_Y1 <- sum_Y1 / sum_post_prob
+  causal_effect <- mean_Y1 - mean_Y0
+  return (structure(list(
+    Overall_0 = mean_Y0,
+    Overall_1 = mean_Y1,
+    Causal_Effect = causal_effect
+  ), class = "PSsummary.nonsurvival"))
+}
+
+PSSummary.survival <- function(PSsampleEx) {
+  Y0 <- PSsampleEx$outcome$outcome[, "0", ,]
+  Y1 <- PSsampleEx$outcome$outcome[, "1", ,]
+  theta0 <- PSsampleEx$outcome$theta[, "0", ]
+  theta1 <- PSsampleEx$outcome$theta[, "1", ]
+  hazard_at <- function (time) {
+    # log(wi)
+    log_w0 <- sweep(-exp(Y0), c(1, 3), time^(exp(theta0)), FUN = '*')
+    log_w1 <- sweep(-exp(Y1), c(1, 3), time^(exp(theta1)), FUN = '*')
+    log_w0 <- sweep(log_w0, c(1, 3), apply(log_w0, c(1, 3), max))
+    log_w1 <- sweep(log_w1, c(1, 3), apply(log_w1, c(1, 3), max))
+    wp0 <- exp(log_w0) * PSsampleEx$prob_const
+    wp1 <- exp(log_w1) * PSsampleEx$prob_const
+    
+    hzrd0_base <- exp(sweep(Y0, c(1,3), theta0, FUN = '+'))
+    hzrd1_base <- exp(sweep(Y1, c(1,3), theta1, FUN = '+'))
+    hzrd0 <- sweep(hzrd0_base, c(1, 3), time^(exp(theta0) - 1), FUN = '*')
+    hzrd1 <- sweep(hzrd1_base, c(1, 3), time^(exp(theta1) - 1), FUN = '*')
+    sum_hzrd0 <- apply(hzrd0 * wp0, c(1, 3), sum)
+    sum_hzrd1 <- apply(hzrd1 * wp1, c(1, 3), sum)
+    sum_wp0 <- apply(wp0, c(1, 3), sum)
+    sum_wp1 <- apply(wp1, c(1, 3), sum)
+    mean_hzrd0 <- sum_hzrd0 / sum_wp0
+    mean_hzrd1 <- sum_hzrd1 / sum_wp1
+    hazard_ratio <- mean_hzrd0 / mean_hzrd1
+    return (list(
+      Hazard_0 = mean_hzrd0,
+      Hazard_1 = mean_hzrd1,
+      Hazard_Ratio = hazard_ratio
+    ))
+  }
+  return (structure(list(
+    hazard_at = hazard_at
+  ), class = "PSSummary.survival"))
 }
 
 PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "default", ER = c(), trunc = FALSE, 
@@ -50,20 +205,18 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
                prior_alpha = prior_inv_gamma(),
                prior_lambda = prior_inv_gamma(),
                prior_theta = prior_normal(),
-               model_name = "unnamed", ...){
-  obj <- PSObject(
-    S.formula, Y.formula, Y.family, monotonicity, ER,
+               ...){
+  PSobj <- PSObject(
+    S.formula, Y.formula, Y.family, data, monotonicity, ER,
     prior_intercept, prior_coefficient, prior_sigma,
     prior_alpha, prior_lambda, prior_theta
   )
-  write.pso(obj, paste0(model_name, ".pso"))
+  write.pso(PSobj, paste0(model_name, ".pso"))
   to_stan(model_name)
-  dataset <- df <- get_data(obj, data)
+  df <- get_data(obj, data)
   stanfit <- rstan::stan(paste0(model_name, ".stan"), data = df, 
                          ...
   )
-  pso_code <- paste(readLines(paste0(model_name, '.pso')), collapse = '\n')
-  stan_code <- paste(readLines(paste0(model_name, '.stan')), collapse = '\n')
   post_samples <- get_posterior_samples(stanfit, obj)
   post_probability_raw <- post_prob_raw(obj, post_samples, df)
   consistency_mat <- consistency(obj, post_samples, df)
@@ -88,93 +241,6 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
   return (res)
 }
 
-post_prob_raw <- function(obj, post_samples, df){
-  results <- array(
-    0, 
-    dim = c(length(obj$strata), length(df$Y), nrow(post_samples)),
-    dimnames = list(obj$strata, NULL, NULL)
-  ) # log_probability
-  names <- colnames(post_samples)
-  for (stratum in obj$strata[-1]) {
-    value <- 0
-    if (generate_names('S', stratum, 'Intrcpt') %in% names)
-      intercept <- post_samples[, generate_names('S', stratum, 'Intrcpt'), drop = F]
-    else
-      intercept <- 0
-    value <- value + rep(1, each = length(df$Y)) %*% t(intercept)
-    if (obj$S.dim > 0){
-      pars <- post_samples[, generate_names('S', stratum, 'Coef', obj$S.dim)]
-      value <- value + df$XS %*% t(pars)
-    }
-    results[stratum, , ] <- value
-    
-  }
-  max_log_prob <- apply(results, c(2, 3), max)
-  results <- exp(sweep(results, c(2, 3), max_log_prob))
-  sum_prob <- apply(results, c(2, 3), sum)
-  results <- sweep(results, c(2, 3), sum_prob, FUN = '/')
-  return (results)
-}
-
-consistency <- function(obj, post_samples, df) {
-  cs_mat <- array(1, dim = c(length(obj$strata), length(df$Y), nrow(post_samples)),
-                       dimnames = list(obj$strata, NULL, NULL))
-  for (stratum in obj$strata) {
-    cs_mat[stratum, , ] <- ifelse(substring(stratum, df$Z+1, df$Z+1) == df$D, 1, 0)
-  }
-}
-
-post_prob <- function(post_prob_raw, consistency_mat) {
-  results <- post_prob_raw * consistency_mat
-  sum_prob <- apply(results, c(2, 3), sum)
-  results <- sweep(results, c(2, 3), sum_prob, FUN = '/')
-  return (results)
-}
-
-post_Y <- function(obj, post_samples, df) {
-  results <- array(
-    0, 
-    dim = c(length(obj$strata), 2, length(df$Y), nrow(post_samples)),
-    dimnames = list(obj$strata, c("0", "1"), NULL, NULL)
-  ) # log_probability
-  theta <- array(0, dim = c(length(obj$strata), 2, nrow(post_samples)),
-                 dimnames = list(obj$strata, c("0", "1"), NULL))
-  names <- colnames(post_samples)
-  for (stratum in obj$strata) {
-    for (z in c("0", "1")){
-      if (stratum %in% obj$ER)
-        zz = "0"
-      else 
-        zz = z
-      value <- 0
-      if (generate_names('Y', c(stratum, zz), 'Intrcpt') %in% names)
-        intercept <- post_samples[, generate_names('Y', c(stratum, zz), 'Intrcpt'), drop = F]
-      else
-        intercept <- 0
-      value <- value + rep(1, each = length(df$Y)) %*% t(intercept)
-      if (obj$S.dim > 0){
-        pars <- post_samples[, generate_names('Y', c(stratum, zz), 'Coef', obj$Y.dim)]
-        value <- value + df$XY %*% t(pars)
-      }
-      if (obj$Y.family$family == "survival") {
-        theta[stratum, z, ] <- post_samples[, generate_names('Y', c(stratum, zz), 'Theta')]
-      }
-      
-      results[stratum, z, , ] <- value
-    }
-  }
-  if (obj$Y.family$family != "survival"){
-    return (obj$Y.family$linkinv(results))
-  }
-  else {
-    return (list(mean = results, theta = theta))
-  }
-}
-
-post_stratum_samples <- function(obj, post_samples, df) {
-  prob <- post_prob(obj, post_samples, df)
-  apply(prob, c(2,3), function(p) (1:dim(prob)[1]) %*% rmultinom(1,1,p))
-}
 
 plot_prob_prob_one <- function(num_draw, post_prob, post_stratum_samples) {
   post_stratum <- post_stratum_samples[, num_draw]

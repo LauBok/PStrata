@@ -1,5 +1,5 @@
 PSObject <- function(
-  S.model, Y.model, Y.family, monotonicity, ER,
+  S.formula, Y.formula, Y.family, data, monotonicity, ER, trunc,
   prior_intercept = prior_uniform(),
   prior_coefficient = prior_normal(),
   prior_sigma = prior_inv_gamma(),
@@ -7,42 +7,30 @@ PSObject <- function(
   prior_lambda = prior_inv_gamma(),
   prior_theta = prior_normal()
 ) {
-  # analyze monotonicity
-  if (monotonicity == "default")
-    strata <- c("00", "01", "11")
-  else if (monotonicity == "none")
-    strata <- c("00", "01", "10", "11")
-  else if (monotonicity == "strong")
-    strata <- c("00", "01")
-  
-  # create model for each stratum
+  strata <- get_strata(monotonicity)
   parameter_list <- list()
   
   # models for stratum
-  prse_fml_S <- parse.formula(S.model)
-  treatment.var <- prse_fml_S$response[1]
-  intervention.var <- prse_fml_S$response[2]
-  S_has_intercept <- prse_fml_S$has_intercept
-  S_num_of_param <- prse_fml_S$num_of_predictors
+  prse_fml_S <- parse.formula(S.formula, data)
+  print("haha1")
   
   for (stratum in strata[-1]) {
-    if (S_has_intercept)
+    if (prse_fml_S$has_intercept) # S has intercept
       parameter_list <- append(parameter_list, list(list(
         type = "real", prior_type = "prior_intercept", name = "Intrcpt",
         group = stratum, class = 'S'
       )))
     parameter_list <- append(parameter_list, list(list(
-      type = "real_vct", dim = S_num_of_param,
+      type = "real_vct", dim = prse_fml_S$num_of_predictors,
       prior_type = "prior_coefficient", name = "Coef",
       group = stratum, class = 'S'
     )))
   }
   
   # models for outcome
-  prse_fml_Y <- parse.formula(Y.model)
-  outcome.var <- prse_fml_Y$response[1]
-  censor.var <- prse_fml_Y$response[2]
-  Y_params <- get_param_from_model(model(Y.family, Y.model))
+  prse_fml_Y <- parse.formula(Y.formula, data)
+  print("haha2")
+  Y_params <- get_param_from_model(model(Y.family, Y.formula), data)
   
   for (stratum in strata) {
     for (z in 0:1) {
@@ -57,33 +45,43 @@ PSObject <- function(
     }
   }
   
-  # outcome type
-  if (Y.family$family %in% c("gaussian"))
-    Y_type = "continuous"
-  else if (Y.family$family %in% c("binomial"))
-    Y_type = "binary"
-  else if (Y.family$family %in% c("Gamma", "inverse.gaussian"))
-    Y_type = "positive"
-  else if (Y.family$family %in% c("poission"))
-    Y_type = "count"
-  else if (Y.family$family %in% c("survival"))
-    Y_type = "survival"
-  
+  df <- list(
+    N = nrow(data), 
+    Z = dplyr::pull(data, prse_fml_S$response[1]),
+    D = dplyr::pull(data, prse_fml_S$response[2]),
+    Y = dplyr::pull(data, prse_fml_Y$response[1]),
+    XS = prse_fml_S$model_matrix,
+    XY = prse_fml_Y$model_matrix
+  )
+  if (!is.na(prse_fml_Y$response[2]))
+    df$C <- dplyr::pull(data, prse_fml_S$response[2])
   
   return (structure(list(
-    variables = list(
-      treatment = treatment.var,
-      intervention = intervention.var,
-      outcome = outcome.var,
-      censor = censor.var
+    PSsettings = list(
+      S.formula = S.formula, 
+      Y.formula = Y.formula, 
+      Y.family = Y.family,
+      Y.type = get_outcome_type(Y.family),
+      strata = strata,
+      ER = ER
     ),
+    PSvars = list(
+      treatment = prse_fml_S$response[1],
+      intervention = prse_fml_S$response[2],
+      outcome = prse_fml_Y$response[1],
+      censor = prse_fml_Y$response[2]
+    ),
+    PScovs = list(
+      S.intercept = prse_fml_S$has_intercept,
+      S.predictors = prse_fml_S$predictors,
+      S.dim = prse_fml_S$num_of_predictors,
+      Y.intercept = prse_fml_Y$has_intercept,
+      Y.predictors = prse_fml_Y$predictors,
+      Y.dim = prse_fml_Y$num_of_predictors,
+      ncount = nrow(data)
+    ),
+    data = df,
     parameter_list = parameter_list,
-    outcome_type = Y_type,
-    strata = strata,
-    ER = ER,
-    S.model = S.model, 
-    Y.model = Y.model, 
-    Y.family = Y.family,
     priors = list(
       prior_intercept = prior_intercept,
       prior_coefficient = prior_coefficient,
@@ -91,9 +89,7 @@ PSObject <- function(
       prior_alpha = prior_alpha,
       prior_lambda = prior_lambda,
       prior_theta = prior_theta
-    ),
-    S.dim = prse_fml_S$num_of_predictors,
-    Y.dim = prse_fml_Y$num_of_predictors
+    )
   ), class = "PSObject"))
 }
 
@@ -105,9 +101,10 @@ write.pso <- function(obj, filename = NULL){
   }
   
   lines <- c()
-  Y_def <- paste0("Y: ", obj$outcome_type)
-  S_def <- paste0("S: ", paste0(strtoi(obj$strata, base = 2), collapse = ' '))
-  Dim_def <- paste0("Dim: ", obj$S.dim, " ", obj$Y.dim)
+  Y_def <- paste0("Y: ", obj$PSsettings$Y.type)
+  S_def <- paste0("S: ", paste0(
+    strtoi(obj$PSsettings$strata, base = 2), collapse = ' '))
+  Dim_def <- paste0("Dim: ", obj$PScovs$S.dim, " ", obj$PScovs$Y.dim)
   lines <- c(lines, Y_def, S_def, Dim_def)
   lines <- c(lines, "parameter {")
   for (i in 1:length(obj$parameter_list)) {
@@ -144,17 +141,16 @@ write.pso <- function(obj, filename = NULL){
   lines <- c(lines, "strata {")
   lines <- c(lines, indent(
     paste0(
-      strtoi(obj$strata[1], 2), ": 0"
+      strtoi(obj$PSsettings$strata[1], 2), ": 0"
     ), indent = 4
   ))
-  for (stratum in obj$strata[-1]){
-    prse_fml_S <- parse.formula(obj$S.model)
+  for (stratum in obj$PSsettings$strata[-1]){
     name_intrcpt <- paste('S', stratum, "Intrcpt", sep = '_')
     name_coef <- paste('S', stratum, "Coef", sep = '_')
     str_core <- c()
-    if (prse_fml_S$has_intercept)
+    if (obj$PScovs$S.intercept)
       str_core <- c(str_core, name_intrcpt)
-    if (prse_fml_S$num_of_predictors)
+    if (obj$PScovs$S.dim)
       str_core <- c(str_core, paste0("$ * ", name_coef))
     str_mean <- paste(str_core, collapse = ' + ')
     lines <- c(
@@ -165,14 +161,14 @@ write.pso <- function(obj, filename = NULL){
   lines <- c(lines, "}")
   # Outcome models
   lines <- c(lines, "outcome {")
-  for (stratum in obj$strata){
+  for (stratum in obj$PSsettings$strata){
     for (j in 0:1){
       str_index <- paste0(strtoi(stratum, 2), ", ", j, ": ")
-      if (stratum %in% obj$ER)
+      if (stratum %in% obj$PSsettings$ER)
         group <- c(stratum, 0)
       else 
         group <- c(stratum, j)
-      str_model <- get_dist_str(obj$Y.family, obj$Y.model, group)
+      str_model <- get_dist_str(obj, group)
       lines <- c(
         lines, 
         indent(paste0(str_index, str_model), indent = 4)

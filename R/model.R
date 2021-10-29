@@ -16,8 +16,22 @@ model <- function(family, formula) {
   ))
 }
 
-get_param_from_model <- function(model) {
-  prse_fml <- parse.formula(model$formula)
+get_outcome_type <- function(family) {
+  if (Y.family$family %in% c("gaussian"))
+    Y_type = "continuous"
+  else if (Y.family$family %in% c("binomial"))
+    Y_type = "binary"
+  else if (Y.family$family %in% c("Gamma", "inverse.gaussian"))
+    Y_type = "positive"
+  else if (Y.family$family %in% c("poission"))
+    Y_type = "count"
+  else if (Y.family$family %in% c("survival"))
+    Y_type = "survival"
+  return (Y_type)
+}
+
+get_param_from_model <- function(model, data) {
+  prse_fml <- parse.formula(model$formula, data)
   param_list <- list()
   if (prse_fml$has_intercept) {
     param_list <- c(param_list, list(list(
@@ -47,16 +61,15 @@ get_param_from_model <- function(model) {
   return (param_list)
 }
 
-get_dist_str <- function(family, Y.formula, group){
-  family_name <- family$family
-  link <- family$link
-  prse_fml_Y <- parse.formula(Y.formula)
+get_dist_str <- function(PSobject, group){
+  family_name <- PSobject$PSsettings$Y.family$family
+  link <- PSobject$PSsettings$Y.family$link
   name_intrcpt <- paste(c('Y', group, "Intrcpt"), collapse = '_')
   name_coef <- paste(c('Y', group, "Coef"), collapse = '_')
   str_core <- c()
-  if (prse_fml_Y$has_intercept)
+  if (PSobject$PScovs$Y.intercept)
     str_core <- c(str_core, name_intrcpt)
-  if (prse_fml_Y$num_of_predictors)
+  if (PSobject$PScovs$Y.dim)
     str_core <- c(str_core, paste0("$ * ", name_coef))
   str_mean <- paste(str_core, collapse = ' + ')
   group_prefix <- paste(c("Y", group, ""), collapse = '_')

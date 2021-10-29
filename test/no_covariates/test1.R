@@ -39,6 +39,20 @@ data$Y <- ifelse(data$S == 1,
 
 write.csv(data, "test/no_covariates/data1.csv", row.names = F)
 
+PSobject <- PSObject(
+  S.formula = Z + D ~ 1,
+  Y.formula = Y ~ 1,
+  Y.family = gaussian(),
+  data = data,
+  monotonicity = "strong",
+  ER = c('00'),
+  trunc = FALSE,
+)
+
+PSsample <- PSSampling(PSobject, chains = 1)
+
+PSsampleEx <- PSSampleEx(PSobject, PSsample)
+PSsummary <- PSSummary(PSsampleEx)
 
 result <- PStrata(
   S.formula = Z + D ~ 1,
