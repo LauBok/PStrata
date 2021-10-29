@@ -8,10 +8,14 @@ get_data <- function(PSobject, data) {
   if (!is.na(PSobject$variables$censor))
     df$C <- dplyr::pull(data, PSobject$variables$censor)
   if (PSobject$S.dim){
-    df$XS <- model.matrix(update.formula(PSobject$S.model, . ~ . - 1), data)
+    df$XS <- model.matrix(PSobject$S.model, data)
+    if (colnames(df$XS) == '(Intercept)')
+      df$XS <- df$XS[, -1]
   }
   if (PSobject$Y.dim){
-    df$XY <- model.matrix(update.formula(PSobject$Y.model, . ~ . - 1), data)
+    df$XY <- model.matrix(PSobject$S.model, data)
+    if (colnames(df$XY) == '(Intercept)')
+      df$XY <- df$XY[, -1]
   }
   return (df)
 }
@@ -62,7 +66,8 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
   stan_code <- paste(readLines(paste0(model_name, '.stan')), collapse = '\n')
   post_samples <- get_posterior_samples(stanfit, obj)
   post_probability_raw <- post_prob_raw(obj, post_samples, df)
-  post_probability <- post_prob(obj, post_samples, df)
+  consistency_mat <- consistency(obj, post_samples, df)
+  post_probability <- post_prob(post_probability_raw, consistency_mat)
   post_outcome <- post_Y(obj, post_samples, df)
   if (obj$Y.family$family == "survival") {
     outcome <- summarize_result_survival(post_probability_raw, post_probability, post_outcome)
@@ -111,15 +116,16 @@ post_prob_raw <- function(obj, post_samples, df){
   return (results)
 }
 
-post_prob <- function(obj, post_samples, df) {
-  results <- post_prob_raw(obj, post_samples, df)
-  consistency <- array(1, dim = dim(results),
+consistency <- function(obj, post_samples, df) {
+  cs_mat <- array(1, dim = c(length(obj$strata), length(df$Y), nrow(post_samples)),
                        dimnames = list(obj$strata, NULL, NULL))
   for (stratum in obj$strata) {
-    # consistency
-    consistency[stratum, , ] <- ifelse(substring(stratum, df$Z+1, df$Z+1) == df$D, 1, 0)
+    cs_mat[stratum, , ] <- ifelse(substring(stratum, df$Z+1, df$Z+1) == df$D, 1, 0)
   }
-  results <- results * consistency
+}
+
+post_prob <- function(post_prob_raw, consistency_mat) {
+  results <- post_prob_raw * consistency_mat
   sum_prob <- apply(results, c(2, 3), sum)
   results <- sweep(results, c(2, 3), sum_prob, FUN = '/')
   return (results)
