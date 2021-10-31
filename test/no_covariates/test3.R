@@ -68,14 +68,14 @@ plot(result)
 # if misspecified ER
 
 result2 <- PStrata::PStrata(
-  S.formula = Z + D ~ 1,
+  S.formula = Z + D ~ owner * as.factor(dependents),
   Y.formula = Y ~ 1,
   Y.family = gaussian(),
   data = data,
   monotonicity = "default",
   ER = c('00'),
   trunc = FALSE,
-  chains = 1, warmup = 500, iter = 2000
+  chains = 1, warmup = 100, iter = 500
 )
 
 plot(result2)

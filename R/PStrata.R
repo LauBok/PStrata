@@ -109,7 +109,7 @@ PSSampleEx <- function(PSobject, PSsample) {
         value <- value + PSobject$data$XY %*% t(pars)
       }
       if (PSobject$PSsettings$Y.family$family == "survival") {
-        theta[stratum, z, ] <- PSobject$post_samples[, generate_names('Y', c(stratum, zz), 'Theta')]
+        theta[stratum, z, ] <- PSsample$post_samples[, generate_names('Y', c(stratum, zz), 'Theta')]
       }
       post_outcome_mean[stratum, z, , ] <- value
     }
@@ -128,6 +128,8 @@ PSSampleEx <- function(PSobject, PSsample) {
 
   return (structure(
     list(
+      PSobject = PSobject,
+      PSsample = PSsample,
       prob_unadj = post_prob_unadjusted,
       prob_const = post_prob_consistent,
       consistency = cs_mat,
@@ -147,55 +149,235 @@ PSSummary <- function(PSsampleEx){
 }
 
 PSSummary.nonsurvival <- function(PSsampleEx) {
-  Y0 <- PSsampleEx$outcome$outcome[, "0", ,]
-  Y1 <- PSsampleEx$outcome$outcome[, "1", ,]
-  sum_Y0 <- apply(Y0 * PSsampleEx$prob_const, c(1, 3), sum)
-  sum_Y1 <- apply(Y1 * PSsampleEx$prob_const, c(1, 3), sum)
-  sum_post_prob <- apply(PSsampleEx$prob_const, c(1, 3), sum)
-  mean_Y0 <- sum_Y0 / sum_post_prob
-  mean_Y1 <- sum_Y1 / sum_post_prob
-  causal_effect <- mean_Y1 - mean_Y0
+  prob <- broadcast(extend(PSsampleEx$prob_const, 2), dim(PSsampleEx$outcome$outcome))
+  outcome <- apply(PSsampleEx$outcome$outcome * prob, c(1, 2, 4), mean) / apply(prob, c(1, 2, 4), mean)
+  causal_effect <- outcome[, "1", ] - outcome[, "0", ]
+
   return (structure(list(
-    Overall_0 = mean_Y0,
-    Overall_1 = mean_Y1,
+    PSsampleEx = PSsampleEx,
+    Overall_0 = outcome[, "0", ],
+    Overall_1 = outcome[, "1", ],
     Causal_Effect = causal_effect
-  ), class = "PSsummary.nonsurvival"))
+  ), class = "PSSummary.nonsurvival"))
 }
 
 PSSummary.survival <- function(PSsampleEx) {
-  Y0 <- PSsampleEx$outcome$outcome[, "0", ,]
-  Y1 <- PSsampleEx$outcome$outcome[, "1", ,]
-  theta0 <- PSsampleEx$outcome$theta[, "0", ]
-  theta1 <- PSsampleEx$outcome$theta[, "1", ]
-  hazard_at <- function (time) {
-    # log(wi)
-    log_w0 <- sweep(-exp(Y0), c(1, 3), time^(exp(theta0)), FUN = '*')
-    log_w1 <- sweep(-exp(Y1), c(1, 3), time^(exp(theta1)), FUN = '*')
-    log_w0 <- sweep(log_w0, c(1, 3), apply(log_w0, c(1, 3), max))
-    log_w1 <- sweep(log_w1, c(1, 3), apply(log_w1, c(1, 3), max))
-    wp0 <- exp(log_w0) * PSsampleEx$prob_const
-    wp1 <- exp(log_w1) * PSsampleEx$prob_const
-    
-    hzrd0_base <- exp(sweep(Y0, c(1,3), theta0, FUN = '+'))
-    hzrd1_base <- exp(sweep(Y1, c(1,3), theta1, FUN = '+'))
-    hzrd0 <- sweep(hzrd0_base, c(1, 3), time^(exp(theta0) - 1), FUN = '*')
-    hzrd1 <- sweep(hzrd1_base, c(1, 3), time^(exp(theta1) - 1), FUN = '*')
-    sum_hzrd0 <- apply(hzrd0 * wp0, c(1, 3), sum)
-    sum_hzrd1 <- apply(hzrd1 * wp1, c(1, 3), sum)
-    sum_wp0 <- apply(wp0, c(1, 3), sum)
-    sum_wp1 <- apply(wp1, c(1, 3), sum)
-    mean_hzrd0 <- sum_hzrd0 / sum_wp0
-    mean_hzrd1 <- sum_hzrd1 / sum_wp1
-    hazard_ratio <- mean_hzrd0 / mean_hzrd1
+  hazard_at <- function(time) {
+    full_dim <- c(dim(PSsampleEx$outcome$outcome), length(time))
+    theta <- broadcast(extend(PSsampleEx$outcome$theta, c(3,5)), full_dim)
+    mu <- broadcast(extend(PSsampleEx$outcome$outcome, c(5)), full_dim)
+    log_t <- broadcast(extend(array(log(time)), 1:4), full_dim)
+    log_S <- -exp(mu) * exp(log_t * exp(theta))
+    log_lambda <- theta + mu + (exp(theta) - 1) * log_t
+    prob <- broadcast(extend(PSsampleEx$prob_const, c(2, 5)), full_dim)
+    survival_curve <- apply(exp(log_S) * prob, c(1,2,4,5), mean) / apply(prob, c(1,2,4,5), mean)
+    max_log <- max(log_S, log_S + log_lambda)
+    hazard <- apply(exp(log_S + log_lambda - max_log) * prob, c(1,2,4,5), mean) / 
+      apply(exp(log_S - max_log) * prob, c(1,2,4,5), mean)
+    hazard_ratio <- hazard[, "1", , , drop = F] / hazard[, "0", , , drop = F]
     return (list(
-      Hazard_0 = mean_hzrd0,
-      Hazard_1 = mean_hzrd1,
-      Hazard_Ratio = hazard_ratio
+      survival_curve = survival_curve,
+      hazard_curve = hazard,
+      hazard_ratio = hazard_ratio
     ))
   }
+
   return (structure(list(
+    PSsampleEx = PSsampleEx,
     hazard_at = hazard_at
   ), class = "PSSummary.survival"))
+}
+
+print.PSSummary.nonsurvival <- function(PSsummary) {
+  cat("Estimated Proportion from Each Stratum:\n")
+  prob_samples <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
+  prob_summary <- apply(prob_samples, 1, function(x) {
+    c(mean = mean(x), sd = sd(x), 
+      lwr = quantile(x, 0.025), upr = quantile(x, 0.975))
+  })
+  print(prob_summary)
+  cat('\n')
+  cat("Causal Effect of Principal Strata:\n")
+  outcome_summary <- apply(PSsummary$Causal_Effect, 1, function(x) {
+    c(mean = mean(x), sd = sd(x), 
+      lwr = quantile(x, 0.025), upr = quantile(x, 0.975))
+  })
+  print(outcome_summary)
+  cat('\n')
+}
+
+print.PSSummary.survival <- function(PSsummary) {
+  cat("Estimated Proportion from Each Stratum:\n")
+  prob_samples <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
+  prob_summary <- apply(prob_samples, 1, function(x) {
+    c(mean = mean(x), sd = sd(x), 
+      lwr = quantile(x, 0.025), upr = quantile(x, 0.975))
+  })
+  print(prob_summary)
+  cat('\n')
+  cat("Causal Effect of Principal Strata:\n")
+  cat("Call summary() with time parameter to get hazard ratio.")
+  cat('\n')
+}
+
+summary.PSSummary.nonsurvival <- function(PSsummary){
+  func_summarize <- function(x) {
+    c(mean = mean(x), 
+      se_mean = ifelse(abs(sd(x)) < .Machine$double.eps, 
+                       0, 
+                       sd(x) / unname(sqrt(coda::effectiveSize(x)))), 
+      sd = sd(x), 
+      quantile(x, c(0.025, 0.25, 0.5, 0.75, 0.975)))
+  }
+  parameter <- rstan::summary(PSsummary$PSsampleEx$PSsample$stanfit)$summary
+  
+  # proportion
+  prob_samples <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
+  prob_summary <- apply(prob_samples, 1, func_summarize)
+  proportion <- t(prob_summary)
+  
+  # outcome
+  out_summary_0 <- apply(PSsummary$Overall_0, 1, func_summarize)
+  out_summary_1 <- apply(PSsummary$Overall_1, 1, func_summarize)
+  effect <- apply(PSsummary$Causal_Effect, 1, func_summarize)
+  outcome_0 <- t(out_summary_0)
+  outcome_1 <- t(out_summary_1)
+  effect <- t(effect)
+  
+  return (structure(list(
+    parameter = parameter,
+    proportion = proportion,
+    outcome = list(outcome_0 = outcome_0, outcome_1 = outcome_1),
+    effect = effect
+  ), class = "summary.PSSummary.nonsurvival"))
+}
+
+summary.PSSummary.survival <- function(PSsummary, time = 1){
+  func_summarize <- function(x) {
+    c(mean = mean(x), 
+      se_mean = ifelse(abs(sd(x)) < .Machine$double.eps, 
+                       0, 
+                       sd(x) / unname(sqrt(coda::effectiveSize(x)))), 
+      sd = sd(x), 
+      quantile(x, c(0.025, 0.25, 0.5, 0.75, 0.975)))
+  }
+  parameter <- rstan::summary(PSsummary$PSsampleEx$PSsample$stanfit)$summary
+  
+  # proportion
+  prob_samples <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
+  prob_summary <- apply(prob_samples, 1, func_summarize)
+  proportion <- t(prob_summary)
+  
+  # outcome
+  survival_result <- PSsummary$hazard_at(time)
+  strata <- PSsummary$PSsampleEx$PSobject$PSsettings$strata
+  hazard_ratio <- hazard_curve <- survival_curve <- list()
+  
+  dimension <- dim(survival_result$survival_curve)[3:4]
+  for (stratum in strata){
+    for (trt in c("0", "1")) {
+      surv_func <- t(apply(
+        array(survival_result$survival_curve[stratum, trt,,], dim = dimension),
+        2, func_summarize
+      ))
+      rownames(surv_func) <- time
+      
+      hzrd_func <- t(apply(
+        array(survival_result$hazard_curve[stratum, trt,,], dim = dimension),
+        2, func_summarize
+      ))
+      rownames(hzrd_func) <- time
+      
+      survival_curve[[stratum]][[trt]] <- surv_func
+      hazard_curve[[stratum]][[trt]] <- hzrd_func
+    }
+    
+    hzrd_ratio <- t(apply(
+      array(survival_result$hazard_ratio[stratum,1,,], dim = dimension),
+      2, func_summarize
+    ))
+    rownames(hzrd_ratio) <- time
+    hazard_ratio[[stratum]] <- hzrd_ratio
+  }
+  
+  return (structure(list(
+    time_points = time,
+    parameter = parameter,
+    proportion = proportion,
+    survival_curve = survival_curve,
+    hazard_curve = hazard_curve,
+    hazard_ratio = hazard_ratio
+  ), class = "summary.PSSummary.survival"))
+}
+
+print.summary.PSSummary.nonsurvival <- function(summary.PSsummary) {
+  
+  cat("Posterior estimate of parameters:\n")
+  print(summary.PSsummary$parameter)
+  cat("\n")
+  
+  cat("Estimated Proportion from Each Stratum:\n")
+  print(summary.PSsummary$proportion)
+  cat("\n")
+  
+  cat("Estimated Average Outcome:\n")
+  cat("-- Treatment (Z = 1) --\n")
+  print(summary.PSsummary$outcome$outcome_1)
+  cat("\n")
+  cat("-- Control (Z = 0) --\n")
+  print(summary.PSsummary$outcome$outcome_0)
+  cat("\n")
+  
+  cat("Estimated Treatment Effect (Control as Reference):\n")
+  print(summary.PSsummary$effect)
+  cat("\n")
+}
+
+print.summary.PSSummary.survival <- function(summary.PSsummary) {
+  func_summarize <- function(x) {
+    c(mean = mean(x, na.rm = T), 
+      se_mean = ifelse(abs(sd(x, na.rm = T)) < .Machine$double.eps, 
+                       0, 
+                       sd(x, na.rm = T) / unname(sqrt(coda::effectiveSize(x)))), 
+      sd = sd(x, na.rm = T), 
+      quantile(x, c(0.025, 0.25, 0.5, 0.75, 0.975), na.rm = T))
+  }
+  cat("Posterior estimate of parameters:\n")
+  print(summary.PSsummary$parameter)
+  cat("\n")
+  
+  cat("Estimated Proportion from Each Stratum:\n")
+  print(summary.PSsummary$proportion)
+  cat("\n")
+  
+  cat("Estimated Survival Function (Mean):\n")
+  for (stratum in rownames(summary.PSsummary$proportion)) {
+    cat("Stratum ", stratum, ":\n", sep = "")
+    cat("-- Treatment (Z = 1) --\n")
+    print(summary.PSsummary$survival_curve[[stratum]][["1"]])
+    cat("\n")
+    cat("-- Control (Z = 0) --\n")
+    print(summary.PSsummary$survival_curve[[stratum]][["0"]])
+    cat("\n")
+  }
+  
+  cat("Estimated Hazard Function (Mean):\n")
+  for (stratum in rownames(summary.PSsummary$proportion)) {
+    cat("Stratum ", stratum, ":\n", sep = "")
+    cat("-- Treatment (Z = 1) --\n")
+    print(summary.PSsummary$hazard_curve[[stratum]][["1"]])
+    cat("\n")
+    cat("-- Control (Z = 0) --\n")
+    print(summary.PSsummary$hazard_curve[[stratum]][["0"]])
+    cat("\n")
+  }
+  
+  cat("Estimated Hazard Ratio (Control as Reference):\n")
+  for (stratum in rownames(summary.PSsummary$proportion)) {
+    cat("Stratum ", stratum, ":\n", sep = "")
+    print(summary.PSsummary$hazard_ratio[[stratum]])
+    cat("\n")
+  }
 }
 
 PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "default", ER = c(), trunc = FALSE, 
@@ -206,162 +388,33 @@ PStrata <- function(S.formula, Y.formula, Y.family, data, monotonicity = "defaul
                prior_lambda = prior_inv_gamma(),
                prior_theta = prior_normal(),
                ...){
-  PSobj <- PSObject(
-    S.formula, Y.formula, Y.family, data, monotonicity, ER,
+  PSobject <- PSObject(
+    S.formula, Y.formula, Y.family, data, monotonicity, ER, trunc,
     prior_intercept, prior_coefficient, prior_sigma,
     prior_alpha, prior_lambda, prior_theta
   )
-  write.pso(PSobj, paste0(model_name, ".pso"))
-  to_stan(model_name)
-  df <- get_data(obj, data)
-  stanfit <- rstan::stan(paste0(model_name, ".stan"), data = df, 
-                         ...
-  )
-  post_samples <- get_posterior_samples(stanfit, obj)
-  post_probability_raw <- post_prob_raw(obj, post_samples, df)
-  consistency_mat <- consistency(obj, post_samples, df)
-  post_probability <- post_prob(post_probability_raw, consistency_mat)
-  post_outcome <- post_Y(obj, post_samples, df)
-  if (obj$Y.family$family == "survival") {
-    outcome <- summarize_result_survival(post_probability_raw, post_probability, post_outcome)
-  }
-  else
-    outcome <- summarize_result(post_probability_raw, post_probability, post_outcome)
-  
+  PSsample <- PSSampling(PSobject, ...)
+  PSsampleEx <- PSSampleEx(PSobject, PSsample)
+  PSsummary <- PSSummary(PSsampleEx)
   res <- list(
-    data = df,
-    stanfit = stanfit,
-    PSobject = obj,
-    pso_code = pso_code,
-    stan_code = stan_code,
-    post_samples = post_samples,
-    outcome = outcome
+    PSobject = PSobject,
+    PSsummary = PSsummary
   )
   class(res) <- "PStrata"
   return (res)
 }
 
-
-plot_prob_prob_one <- function(num_draw, post_prob, post_stratum_samples) {
-  post_stratum <- post_stratum_samples[, num_draw]
-  prob <- post_prob[,, num_draw]
-  data <- bind_cols(as.data.frame(t(prob)), stratum = post_stratum)
-  colnames(data) <- c(obj$strata, "stratum")
-  data$stratum <- obj$strata[data$stratum]
-  data_plot <- pivot_longer(data, -stratum)
-  colnames(data_plot) <- c("sample", "stratum", "prob")
-  ggplot(data_plot) + 
-    geom_histogram(aes(prob, y = ..density.., fill = stratum), alpha = 0.4) + 
-    geom_density(aes(prob, color = stratum)) + 
-    facet_wrap(~sample)
-}
-
-summarize_result <- function(post_prob_raw, post_prob, post_Y) {
-  Y0 <- post_Y[, "0", ,]
-  Y1 <- post_Y[, "1", ,]
-  sum_Y0 <- apply(Y0 * post_prob, c(1, 3), sum)
-  sum_Y1 <- apply(Y1 * post_prob, c(1, 3), sum)
-  sum_post_prob <- apply(post_prob, c(1, 3), sum)
-  mean_Y0 <- sum_Y0 / sum_post_prob
-  mean_Y1 <- sum_Y1 / sum_post_prob
-  causal_effect <- mean_Y1 - mean_Y0
-  return (structure(list(
-    Prob = post_prob_raw,
-    Overall_0 = mean_Y0,
-    Overall_1 = mean_Y1,
-    Causal_Effect = causal_effect
-  ), class = "post_outcome"))
-}
-
-summarize_result_survival <- function(post_prob_raw, post_prob, post_Y) {
-  Y0 <- post_Y$mean[, "0", ,]
-  Y1 <- post_Y$mean[, "1", ,]
-  theta0 <- post_Y$theta[, "0", ]
-  theta1 <- post_Y$theta[, "1", ]
-  f <- function (t) {
-    # log(wi)
-    log_w0 <- sweep(-exp(Y0), c(1, 3), t^(exp(theta0)), FUN = '*')
-    log_w1 <- sweep(-exp(Y1), c(1, 3), t^(exp(theta1)), FUN = '*')
-    log_w0 <- sweep(log_w0, c(1, 3), apply(log_w0, c(1, 3), max))
-    log_w1 <- sweep(log_w1, c(1, 3), apply(log_w1, c(1, 3), max))
-    wp0 <- exp(log_w0) * post_prob
-    wp1 <- exp(log_w1) * post_prob
-    
-    hzrd0_base <- exp(sweep(Y0, c(1,3), theta0, FUN = '+'))
-    hzrd1_base <- exp(sweep(Y1, c(1,3), theta1, FUN = '+'))
-    hzrd0 <- sweep(hzrd0_base, c(1, 3), t^(exp(theta0) - 1), FUN = '*')
-    hzrd1 <- sweep(hzrd1_base, c(1, 3), t^(exp(theta1) - 1), FUN = '*')
-    sum_hzrd0 <- apply(hzrd0 * wp0, c(1, 3), sum)
-    sum_hzrd1 <- apply(hzrd1 * wp1, c(1, 3), sum)
-    sum_wp0 <- apply(wp0, c(1, 3), sum)
-    sum_wp1 <- apply(wp1, c(1, 3), sum)
-    mean_hzrd0 <- sum_hzrd0 / sum_wp0
-    mean_hzrd1 <- sum_hzrd1 / sum_wp1
-    hazard_ratio <- mean_hzrd0 / mean_hzrd1
-    return (list(
-      Hazard_0 = mean_hzrd0,
-      Hazard_1 = mean_hzrd1,
-      Hazard_Ratio = hazard_ratio
-    ))
-  }
-  return (structure(list(
-    Prob = post_prob_raw,
-    func = f
-    ), class = "post_survival"))
-}
-
-plot.post_survival <- function(result, t_range = c(0, 10), t_count = 100) {
-  get_long_df <- function(var, data) {
-    df <- tidyr::pivot_longer(as.data.frame(t(data[[var]])), everything())
+plot.PSSummary.nonsurvival <- function(PSsummary) {
+  get_long_df <- function(table, var) {
+    df <- tidyr::pivot_longer(as.data.frame(t(table)), everything())
     df$var <- var
     return (df)
   }
-  result$Prob <- apply(result$Prob, c(1, 3), mean)
-  long_prob <- get_long_df("Prob", result)
-  t_ticks <- seq(max(t_range[1], t_range[2] / 100), t_range[2], length.out = t_count)
-  get_df <- function(t) {
-    r <- result$func(t)
-    h0 <- get_long_df("Hazard_0", r)
-    h1 <- get_long_df("Hazard_1", r)
-    hr <- get_long_df("Hazard_Ratio", r)
-    return (dplyr::bind_rows(h0, h1, hr))
-  }
-  all_df <- dplyr::bind_rows(pbapply::pblapply(t_ticks, function(t) bind_cols(get_df(t), t = t)))
-  
-  p0 <- ggplot(long_prob) + 
-    geom_density(aes(x = value, color = name)) +
-    geom_histogram(aes(x = value, y = after_stat(density), fill = name), alpha = 0.3) +
-    guides(color = "none", fill = "none") +
-    ggtitle("Probability") + xlab("probability")
-  df_1 <- all_df %>% filter(var != "Hazard_Ratio") %>%
-    group_by(name, var, t) %>%
-    summarize(mean = mean(value), lwr = quantile(value, 0.025), upr = quantile(value, 0.975))
-  p1 <- ggplot(df_1) + 
-    geom_line(aes(x = t, y = mean, color = var)) +
-    geom_ribbon(aes(x = t, ymin = lwr, ymax = upr, fill = var), alpha = 0.3) + 
-    facet_wrap(~name) + ggtitle("Hazard") + xlab("time") + ylab("hazard")
-  
-  df_2 <- all_df %>% filter(var == "Hazard_Ratio") %>%
-    group_by(name, var, t) %>%
-    summarize(mean = mean(value), lwr = quantile(value, 0.025), upr = quantile(value, 0.975))
-  p2 <- ggplot(df_2) + 
-    geom_line(aes(x = t, y = mean, color = name)) +
-    geom_ribbon(aes(x = t, ymin = lwr, ymax = upr, fill = name), alpha = 0.3) +
-    ggtitle("Hazard Ratio") + xlab("time") + ylab("hazard ratio")
-  (p0 + p2) / p1
-}
-
-plot.post_outcome <- function(result) {
-  get_long_df <- function(var) {
-    df <- tidyr::pivot_longer(as.data.frame(t(result[[var]])), everything())
-    df$var <- var
-    return (df)
-  }
-  result$Prob <- apply(result$Prob, c(1, 3), mean)
-  long_prob <- get_long_df("Prob")
-  long_O1 <- get_long_df("Overall_1")
-  long_O0 <- get_long_df("Overall_0")
-  long_CE <- get_long_df("Causal_Effect")
+  probability <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
+  long_prob <- get_long_df(probability, var = "Probability")
+  long_O1 <- get_long_df(PSsummary$Overall_1, var = "Overall_1")
+  long_O0 <- get_long_df(PSsummary$Overall_0, var = "Overall_0")
+  long_CE <- get_long_df(PSsummary$Causal_Effect, var = "Causal Effect")
   table_1 <- dplyr::bind_rows(long_O1, long_O0)
   p0 <- ggplot(long_prob) + 
     geom_density(aes(x = value, color = name)) +
@@ -378,39 +431,114 @@ plot.post_outcome <- function(result) {
   (p0 + p2) / p1
 }
 
-print.PStrata <- function(res){
-  if (res$PSobject$Y.family$family == "survival")
-    cat("Survival Data\n")
-  cat("Posterior estimate of the parameters:\n")
-  mat <- rstan::summary(res$stanfit)$summary
-  #param_names <- sapply(obj$PSobject$parameter_list, function(x) x$name)
-  #rownames(mat) <- c(param_names, "__lp")
-  print(mat)
-  cat('\n')
-  cat("Estimated Proportion from Each Stratum:\n")
-  prob_samples <- apply(res$outcome$Prob, c(1, 3), mean)
-  prob_summary <- apply(prob_samples, 1, function(x) {
-    c(mean = mean(x), sd = sd(x), lwr = quantile(x, 0.025), upr = quantile(x, 0.975))
-  })
-  print(prob_summary)
-  cat('\n')
-  if (res$PSobject$Y.family$family != "survival") {
-    cat("Causal Effect of Principal Strata:\n")
-    outcome_summary <- apply(res$outcome$Causal_Effect, 1, function(x) {
-      c(mean = mean(x), sd = sd(x), lwr = quantile(x, 0.025), upr = quantile(x, 0.975))
-    })
-    print(outcome_summary)
-    cat('\n')
+plot.PSSummary.survival <- function(PSsummary, time = 1) {
+  get_long_df <- function(table, var) {
+    df <- tidyr::pivot_longer(as.data.frame(t(table)), everything())
+    df$var <- var
+    return (df)
   }
-  else {
-    cat("Hazard Ratio of Principal Strata at t = 1:\n")
-    outcome_summary <- apply(res$outcome$func(1)$Hazard_Ratio, 1, function(x) {
-      c(mean = mean(x, na.rm = T), sd = sd(x, na.rm = T), 
-        lwr = quantile(x, 0.025, na.rm = T), upr = quantile(x, 0.975, na.rm = T))
-    })
-    print(outcome_summary)
-    cat('\n')
+  probability <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
+  survival_result <- summary.PSSummary.survival(PSsummary, time)
+  long_prob <- get_long_df(probability, var = "Probability")
+  strata <- PSsummary$PSsampleEx$PSobject$PSsettings$strata
+  
+  table_list_hazard_ratio <- list()
+  for (stratum in strata){
+    tmp <- survival_result$hazard_ratio[[stratum]]
+    table_list_hazard_ratio <- c(
+      table_list_hazard_ratio,
+      list(data.frame(
+        stratum = stratum,
+        time = time, 
+        est = tmp[, "50%"],
+        lwr = tmp[, "2.5%"],
+        upr = tmp[, "97.5%"]
+      )
+    ))
   }
+  long_table_hazard_ratio <- do.call(dplyr::bind_rows, table_list_hazard_ratio)
+  
+  table_list_hazard_curve <- list()
+  for (stratum in strata){
+    for (trt in c("0", "1")){
+      tmp <- survival_result$hazard_curve[[stratum]][[trt]]
+      table_list_hazard_curve <- c(
+        table_list_hazard_curve,
+        list(data.frame(
+          stratum = stratum,
+          treatment = trt,
+          time = time, 
+          est = tmp[, "50%"],
+          lwr = tmp[, "2.5%"],
+          upr = tmp[, "97.5%"]
+        )
+        ))
+    }
+  }
+  long_table_hazard_curve <- do.call(dplyr::bind_rows, table_list_hazard_curve)
+  
+  table_list_survival_curve <- list()
+  for (stratum in strata){
+    for (trt in c("0", "1")){
+      tmp <- survival_result$survival_curve[[stratum]][[trt]]
+      table_list_survival_curve <- c(
+        table_list_survival_curve,
+        list(data.frame(
+          stratum = stratum,
+          treatment = trt,
+          time = time, 
+          est = tmp[, "50%"],
+          lwr = tmp[, "2.5%"],
+          upr = tmp[, "97.5%"]
+        )
+        ))
+    }
+  }
+  long_table_survival_curve <- do.call(dplyr::bind_rows, table_list_survival_curve)
+  
+  p0 <- ggplot(long_prob) + 
+    geom_density(aes(x = value, color = name)) +
+    geom_histogram(aes(x = value, y = after_stat(density), fill = name), alpha = 0.3) +
+    guides(color = "none", fill = "none") +
+    ggtitle("Probability") + xlab("probability")
+  p1 <- ggplot(long_table_hazard_ratio) + 
+    geom_line(aes(x = time, y = est, group = stratum, color = stratum)) +
+    geom_ribbon(aes(x = time, ymin = lwr, ymax = upr, fill = stratum), alpha = 0.3) +
+    ggtitle("Hazard Ratio")
+  p2 <- ggplot(long_table_hazard_curve) + 
+    geom_line(aes(x = time, y = est, group = treatment, color = treatment)) +
+    geom_ribbon(aes(x = time, ymin = lwr, ymax = upr, fill = treatment), alpha = 0.3) +
+    facet_wrap(~stratum) +
+    ggtitle("Hazard Curve")
+  p3 <- ggplot(long_table_survival_curve) + 
+    geom_line(aes(x = time, y = est, group = treatment, color = treatment)) +
+    geom_ribbon(aes(x = time, ymin = lwr, ymax = upr, fill = treatment), alpha = 0.3) +
+    facet_wrap(~stratum) +
+    ggtitle("Survival Curve")
+  (p0 + p1) / p2 / p3
+}
+
+print.PStrata <- function(pstrata) {
+  print(pstrata$PSsummary)
+}
+
+summary.PStrata <- function(pstrata) {
+  summary(pstrata$PSsummary)
+}
+
+
+plot_prob_prob_one <- function(num_draw, post_prob, post_stratum_samples) {
+  post_stratum <- post_stratum_samples[, num_draw]
+  prob <- post_prob[,, num_draw]
+  data <- bind_cols(as.data.frame(t(prob)), stratum = post_stratum)
+  colnames(data) <- c(obj$strata, "stratum")
+  data$stratum <- obj$strata[data$stratum]
+  data_plot <- pivot_longer(data, -stratum)
+  colnames(data_plot) <- c("sample", "stratum", "prob")
+  ggplot(data_plot) + 
+    geom_histogram(aes(prob, y = ..density.., fill = stratum), alpha = 0.4) + 
+    geom_density(aes(prob, color = stratum)) + 
+    facet_wrap(~sample)
 }
 
 plot.PStrata <- function(res, ...){

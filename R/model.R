@@ -17,15 +17,15 @@ model <- function(family, formula) {
 }
 
 get_outcome_type <- function(family) {
-  if (Y.family$family %in% c("gaussian"))
+  if (family$family %in% c("gaussian"))
     Y_type = "continuous"
-  else if (Y.family$family %in% c("binomial"))
+  else if (family$family %in% c("binomial"))
     Y_type = "binary"
-  else if (Y.family$family %in% c("Gamma", "inverse.gaussian"))
+  else if (family$family %in% c("Gamma", "inverse.gaussian"))
     Y_type = "positive"
-  else if (Y.family$family %in% c("poission"))
+  else if (family$family %in% c("poission"))
     Y_type = "count"
-  else if (Y.family$family %in% c("survival"))
+  else if (family$family %in% c("survival"))
     Y_type = "survival"
   return (Y_type)
 }

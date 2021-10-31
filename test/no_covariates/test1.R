@@ -49,11 +49,6 @@ PSobject <- PSObject(
   trunc = FALSE,
 )
 
-PSsample <- PSSampling(PSobject, chains = 1)
-
-PSsampleEx <- PSSampleEx(PSobject, PSsample)
-PSsummary <- PSSummary(PSsampleEx)
-
 result <- PStrata(
   S.formula = Z + D ~ 1,
   Y.formula = Y ~ 1,

@@ -51,13 +51,22 @@ ggplot(data) + geom_density(aes(x = Y, color = as.factor(Z))) +
 
 write.csv(data, "test/survival/data_no_covariate.csv", row.names = F)
 
-PSObject(
-  S.model = Z + D ~ 1,
-  Y.model = Y + C ~ 1,
+PSobject <- PSObject(
+  S.formula = Z + D ~ 1,
+  Y.formula = Y + C ~ 1,
   Y.family = survival(),
+  data = data,
   monotonicity = "strong",
-  ER = c('00')
-) -> obj
+  ER = c('00'),
+  prior_intercept = prior_normal(0, 1),
+  prior_coefficient = prior_normal(0, 1),
+  trunc = F
+)
+
+PSsample <- PSSampling(PSobject, chains = 1, warmup = 1000, iter = 3000)
+PSsampleEx <- PSSampleEx(PSobject, PSsample)
+PSsummary <- PSSummary.survival(PSsampleEx)
+plot(PSsummary, time = seq(0.01, 1, length.out = 20))
 
 result <- PStrata(
   S.formula = Z + D ~ 1,

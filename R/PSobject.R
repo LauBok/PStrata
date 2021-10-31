@@ -12,7 +12,6 @@ PSObject <- function(
   
   # models for stratum
   prse_fml_S <- parse.formula(S.formula, data)
-  print("haha1")
   
   for (stratum in strata[-1]) {
     if (prse_fml_S$has_intercept) # S has intercept
@@ -29,7 +28,6 @@ PSObject <- function(
   
   # models for outcome
   prse_fml_Y <- parse.formula(Y.formula, data)
-  print("haha2")
   Y_params <- get_param_from_model(model(Y.family, Y.formula), data)
   
   for (stratum in strata) {
