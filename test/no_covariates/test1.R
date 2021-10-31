@@ -39,6 +39,15 @@ data$Y <- ifelse(data$S == 1,
 
 write.csv(data, "test/no_covariates/data1.csv", row.names = F)
 
+PSobject <- PSObject(
+  S.formula = Z + D ~ 1,
+  Y.formula = Y ~ 1,
+  Y.family = gaussian(),
+  data = data,
+  monotonicity = "strong",
+  ER = c('00'),
+  trunc = FALSE,
+)
 
 result <- PStrata(
   S.formula = Z + D ~ 1,

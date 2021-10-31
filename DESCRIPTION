@@ -7,7 +7,8 @@ Author: Bo Liu
 Maintainer: Bo Liu <bl226@duke.edu>
 Description: One paragraph description of what the package
       does as one or more full sentences.
-Collate: parse_formula.R prior.R model.R PSobject.R RcppExports.R PStrata.R
+Collate: parse_formula.R array.R strata.R prior.R model.R 
+         PSobject.R RcppExports.R PStrata.R
 License: GPL (>= 2)
 Imports: Rcpp (>= 1.0.6), patchwork, ggplot2, tidyverse, rstan
 LinkingTo: Rcpp

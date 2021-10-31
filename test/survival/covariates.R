@@ -51,6 +51,23 @@ data$C <- rbinom(n, 1, 0)
 
 write.csv(data, "test/survival/data_covariate1.csv", row.names = F)
 
+PSobject <- PSObject(
+  S.formula = Z + D ~ age,
+  Y.formula = Y + C ~ age,
+  Y.family = survival(),
+  data = data,
+  monotonicity = "strong",
+  ER = c('00'),
+  prior_intercept = prior_normal(0, 1),
+  prior_coefficient = prior_normal(0, 1),
+  trunc = F
+)
+
+PSsample <- PSSampling(PSobject, chains = 1, warmup = 1000, iter = 3000)
+PSsampleEx <- PSSampleEx(PSobject, PSsample)
+PSsummary <- PSSummary.survival(PSsampleEx)
+plot(PSsummary, time = seq(0.01, 1, length.out = 20))
+
 result <- PStrata::PStrata(
   S.formula = Z + D ~ age,
   Y.formula = Y + C ~ age ,
