@@ -163,18 +163,18 @@ PSSummary.nonsurvival <- function(PSsampleEx) {
 
 PSSummary.survival <- function(PSsampleEx) {
   hazard_at <- function(time) {
-    full_dim <- c(dim(PSsampleEx$outcome$outcome), length(time))
-    theta <- broadcast(extend(PSsampleEx$outcome$theta, c(3,5)), full_dim)
-    mu <- broadcast(extend(PSsampleEx$outcome$outcome, c(5)), full_dim)
-    log_t <- broadcast(extend(array(log(time)), 1:4), full_dim)
+    full_dim <- dim(PSsampleEx$outcome$outcome)
+    theta <- broadcast(extend(PSsampleEx$outcome$theta, 3), full_dim)
+    mu <- PSsampleEx$outcome$outcome
+    log_t <- log(time)
     log_S <- -exp(mu) * exp(log_t * exp(theta))
     log_lambda <- theta + mu + (exp(theta) - 1) * log_t
-    prob <- broadcast(extend(PSsampleEx$prob_const, c(2, 5)), full_dim)
-    survival_curve <- apply(exp(log_S) * prob, c(1,2,4,5), mean) / apply(prob, c(1,2,4,5), mean)
+    prob <- broadcast(extend(PSsampleEx$prob_const, c(2)), full_dim)
+    survival_curve <- apply(exp(log_S) * prob, c(1,2,4), mean) / apply(prob, c(1,2,4), mean)
     max_log <- max(log_S, log_S + log_lambda)
-    hazard <- apply(exp(log_S + log_lambda - max_log) * prob, c(1,2,4,5), mean) / 
-      apply(exp(log_S - max_log) * prob, c(1,2,4,5), mean)
-    hazard_ratio <- hazard[, "1", , , drop = F] / hazard[, "0", , , drop = F]
+    hazard <- apply(exp(log_S + log_lambda - max_log) * prob, c(1,2,4), mean) / 
+      apply(exp(log_S - max_log) * prob, c(1,2,4), mean)
+    hazard_ratio <- hazard[, "1",] / hazard[, "0",]
     return (list(
       survival_curve = survival_curve,
       hazard_curve = hazard,
@@ -269,7 +269,8 @@ summary.PSSummary.survival <- function(PSsummary, time = 1){
   proportion <- t(prob_summary)
   
   # outcome
-  survival_result <- PSsummary$hazard_at(time)
+  survival_result <- lapply(time, PSsummary$hazard_at)
+  
   strata <- PSsummary$PSsampleEx$PSobject$PSsettings$strata
   hazard_ratio <- hazard_curve <- survival_curve <- list()
   
@@ -429,6 +430,94 @@ plot.PSSummary.nonsurvival <- function(PSsummary) {
     geom_histogram(aes(x = value, fill = name), alpha = 0.8) +
     ggtitle("Average Treatment Effect")
   (p0 + p2) / p1
+}
+
+plot.summary.PSSummary.survival <- function(summary.PSsummary, PSsummary) {
+  get_long_df <- function(table, var) {
+    df <- tidyr::pivot_longer(as.data.frame(t(table)), everything())
+    df$var <- var
+    return (df)
+  }
+  probability <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
+  survival_result <- summary.PSsummary
+  long_prob <- get_long_df(probability, var = "Probability")
+  strata <- PSsummary$PSsampleEx$PSobject$PSsettings$strata
+  
+  time <- summary.PSsummary$time_points
+  table_list_hazard_ratio <- list()
+  for (stratum in strata){
+    tmp <- survival_result$hazard_ratio[[stratum]]
+    table_list_hazard_ratio <- c(
+      table_list_hazard_ratio,
+      list(data.frame(
+        stratum = stratum,
+        time = time, 
+        est = tmp[, "50%"],
+        lwr = tmp[, "2.5%"],
+        upr = tmp[, "97.5%"]
+      )
+      ))
+  }
+  long_table_hazard_ratio <- do.call(dplyr::bind_rows, table_list_hazard_ratio)
+  
+  table_list_hazard_curve <- list()
+  for (stratum in strata){
+    for (trt in c("0", "1")){
+      tmp <- survival_result$hazard_curve[[stratum]][[trt]]
+      table_list_hazard_curve <- c(
+        table_list_hazard_curve,
+        list(data.frame(
+          stratum = stratum,
+          treatment = trt,
+          time = time, 
+          est = tmp[, "50%"],
+          lwr = tmp[, "2.5%"],
+          upr = tmp[, "97.5%"]
+        )
+        ))
+    }
+  }
+  long_table_hazard_curve <- do.call(dplyr::bind_rows, table_list_hazard_curve)
+  
+  table_list_survival_curve <- list()
+  for (stratum in strata){
+    for (trt in c("0", "1")){
+      tmp <- survival_result$survival_curve[[stratum]][[trt]]
+      table_list_survival_curve <- c(
+        table_list_survival_curve,
+        list(data.frame(
+          stratum = stratum,
+          treatment = trt,
+          time = time, 
+          est = tmp[, "50%"],
+          lwr = tmp[, "2.5%"],
+          upr = tmp[, "97.5%"]
+        )
+        ))
+    }
+  }
+  long_table_survival_curve <- do.call(dplyr::bind_rows, table_list_survival_curve)
+  
+  p0 <- ggplot(long_prob) + 
+    geom_density(aes(x = value, color = name)) +
+    geom_histogram(aes(x = value, y = after_stat(density), fill = name), alpha = 0.3) +
+    guides(color = "none", fill = "none") +
+    ggtitle("Probability") + xlab("probability")
+  p1 <- ggplot(long_table_hazard_ratio) + 
+    geom_line(aes(x = time, y = est, group = stratum, color = stratum)) +
+    geom_ribbon(aes(x = time, ymin = lwr, ymax = upr, fill = stratum), alpha = 0.3) +
+    ggtitle("Hazard Ratio")
+  p2 <- ggplot(long_table_hazard_curve) + 
+    geom_line(aes(x = time, y = est, group = treatment, color = treatment)) +
+    geom_ribbon(aes(x = time, ymin = lwr, ymax = upr, fill = treatment), alpha = 0.3) +
+    facet_wrap(~stratum) +
+    ggtitle("Hazard Curve")
+  p3 <- ggplot(long_table_survival_curve) + 
+    geom_line(aes(x = time, y = est, group = treatment, color = treatment)) +
+    geom_ribbon(aes(x = time, ymin = lwr, ymax = upr, fill = treatment), alpha = 0.3) +
+    facet_wrap(~stratum) +
+    ggtitle("Survival Curve")
+  (p0 + p1) / p2 / p3
 }
 
 plot.PSSummary.survival <- function(PSsummary, time = 1) {
