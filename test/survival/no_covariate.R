@@ -10,8 +10,9 @@
 set.seed(0)
 
 data <- read.csv("test/data.csv")
-n <- nrow(data)
-
+data <- list()
+#n <- nrow(data)
+n <- 10000
 get_one <- function(log_p1, log_p2, log_p3, log_p4) {
   m <- max(log_p1, log_p2, log_p3, log_p4, na.rm = T)
   f <- function(x) if (is.na(x)) 0 else exp(x - m)
@@ -42,11 +43,11 @@ data$D <- ifelse(data$Z == 1,
 
 data$Y <- ifelse(data$S == 1,
                  sample_survival(n, 1, 0.3), 
-                 sample_survival(n, 1, 6 - 3 * data$Z))
+                 sample_survival(n, 1, 1 - 0.3 * data$Z))
 
 data$C <- rbinom(n, 1, 0)
 
-ggplot(data) + geom_density(aes(x = Y, color = as.factor(Z))) +
+ggplot(as.data.frame(data)) + geom_density(aes(x = Y, color = as.factor(Z))) +
   facet_wrap(~as.factor(S))
 
 write.csv(data, "test/survival/data_no_covariate.csv", row.names = F)
@@ -55,7 +56,7 @@ PSobject <- PSObject(
   S.formula = Z + D ~ 1,
   Y.formula = Y + C ~ 1,
   Y.family = survival(),
-  data = data,
+  data = as.data.frame(data),
   monotonicity = "strong",
   ER = c('00'),
   prior_intercept = prior_normal(0, 1),
@@ -63,7 +64,7 @@ PSobject <- PSObject(
   trunc = F
 )
 
-PSsample <- PSSampling(PSobject, chains = 1, warmup = 1000, iter = 3000)
+PSsample <- PSSampling(PSobject, chains = 1, warmup = 300, iter = 1000, refresh = 10)
 PSsampleEx <- PSSampleEx(PSobject, PSsample)
 PSsummary <- PSSummary.survival(PSsampleEx)
 plot(PSsummary, time = seq(0.01, 1, length.out = 20))
