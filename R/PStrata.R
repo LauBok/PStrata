@@ -269,22 +269,33 @@ summary.PSSummary.survival <- function(PSsummary, time = 1){
   proportion <- t(prob_summary)
   
   # outcome
-  survival_result <- lapply(time, PSsummary$hazard_at)
-  
   strata <- PSsummary$PSsampleEx$PSobject$PSsettings$strata
+  survival_result <- pbapply::pblapply(time, PSsummary$hazard_at)
+  dim_full <- c(dim(survival_result[[1]]$survival_curve), length(time))
+  dimnames_full <- c(dimnames(survival_result[[1]]$survival_curve), list(time))
+  survival_curve_full <- array(NA, dim = dim_full, dimnames = dimnames_full)
+  hazard_curve_full <- array(NA, dim = dim_full, dimnames = dimnames_full)
+  hazard_ratio_full <- array(NA, dim = dim_full[-2], dimnames = dimnames_full[-2])
+  for (i in 1:length(time)) {
+    survival_curve_full[,,,i] <- survival_result[[i]]$survival_curve
+    hazard_curve_full[,,,i] <- survival_result[[i]]$hazard_curve
+    hazard_ratio_full[,,i] <- survival_result[[i]]$hazard_ratio
+  }
+  
+  
   hazard_ratio <- hazard_curve <- survival_curve <- list()
   
-  dimension <- dim(survival_result$survival_curve)[3:4]
+  dimension <- dim(survival_curve_full)[3:4]
   for (stratum in strata){
     for (trt in c("0", "1")) {
       surv_func <- t(apply(
-        array(survival_result$survival_curve[stratum, trt,,], dim = dimension),
+        array(survival_curve_full[stratum, trt,,], dim = dimension),
         2, func_summarize
       ))
       rownames(surv_func) <- time
       
       hzrd_func <- t(apply(
-        array(survival_result$hazard_curve[stratum, trt,,], dim = dimension),
+        array(hazard_curve_full[stratum, trt,,], dim = dimension),
         2, func_summarize
       ))
       rownames(hzrd_func) <- time
@@ -294,7 +305,7 @@ summary.PSSummary.survival <- function(PSsummary, time = 1){
     }
     
     hzrd_ratio <- t(apply(
-      array(survival_result$hazard_ratio[stratum,1,,], dim = dimension),
+      array(hazard_ratio_full[stratum,,], dim = dimension),
       2, func_summarize
     ))
     rownames(hzrd_ratio) <- time
