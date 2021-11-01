@@ -19,11 +19,18 @@ get_one <- function(log_p1, log_p2, log_p3, log_p4) {
   return (which.max(rmultinom(1, 1, c(f(log_p1), f(log_p2), f(log_p3), f(log_p4)))))
 }
 
-sample_survival <- function(n, theta_1, exponential){
+sample_survival <- function(n, theta, mu){
   # CDF: 1 - exp(-exp(theta_2)*t^(exp(theta_1)))
   u <- runif(n)
-  t <- (-log(u) / exp(exponential + theta_1))^exp(-theta_1)
+  t <- (-log(1 - u) / exp(mu))^exp(-theta)
   return (t)
+}
+
+plot_survival <- function(theta, mu, t_range = c(0, 1)) {
+  t_points <- seq(t_range[1], t_range[2], length.out = 100)
+  surv_prob <- exp(-exp(mu) * t_points ^ exp(theta))
+  ggplot(data.frame(time = t_points, probability = surv_prob)) + 
+    geom_line(aes(time, surv_prob))
 }
 
 ## S
@@ -43,9 +50,13 @@ data$D <- ifelse(data$Z == 1,
 
 data$Y <- ifelse(data$S == 1,
                  sample_survival(n, 1, 0.3), 
-                 sample_survival(n, 1, 1 - 0.3 * data$Z))
+                 sample_survival(n, 1, 2 - 0.6 * data$Z))
 
-data$C <- rbinom(n, 1, 0)
+p1 <- plot_survival(1, 0.3)
+p2 <- plot_survival(1, 1.4)
+p3 <- plot_survival(1, 2)
+
+data$C <- rbinom(n, 1, 0.2)
 
 ggplot(as.data.frame(data)) + geom_density(aes(x = Y, color = as.factor(Z))) +
   facet_wrap(~as.factor(S))
@@ -64,10 +75,11 @@ PSobject <- PSObject(
   trunc = F
 )
 
-PSsample <- PSSampling(PSobject, chains = 1, warmup = 300, iter = 1000, refresh = 10)
+PSsample <- PSSampling(PSobject, "wrong", chains = 1, warmup = 300, iter = 1000, refresh = 10)
 PSsampleEx <- PSSampleEx(PSobject, PSsample)
 PSsummary <- PSSummary.survival(PSsampleEx)
-plot(PSsummary, time = seq(0.01, 1, length.out = 20))
+p <- plot(PSsummary, time = seq(0.01, 1, length.out = 20))
+(p1 / p2 / p3) | p
 
 result <- PStrata(
   S.formula = Z + D ~ 1,

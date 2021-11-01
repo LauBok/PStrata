@@ -130,7 +130,7 @@ get_dist_str <- function(PSobject, group){
   }
   if (family_name == "survival") {
     str_theta <- paste0(group_prefix, "Theta")
-    str_inner <- paste0(str_theta, " + ", str_mean)
+    str_inner <- paste0(str_mean)
     return (paste0("survival_lpdf(. | ", str_inner, ", ", str_theta, ", .)"))
   }
 }

@@ -52,7 +52,7 @@ PSObject <- function(
     XY = prse_fml_Y$model_matrix
   )
   if (!is.na(prse_fml_Y$response[2]))
-    df$C <- dplyr::pull(data, prse_fml_S$response[2])
+    df$C <- dplyr::pull(data, prse_fml_Y$response[2])
   
   return (structure(list(
     PSsettings = list(
