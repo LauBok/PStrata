@@ -14,7 +14,7 @@ parse.formula <- function(formula, data) {
   has_intercept <- attr(terms, "intercept")
   model_matrix <- model.matrix(
     update.formula(formula, ~ . + 1), 
-    dplyr::mutate_if(data, is.numeric, scale)
+    dplyr::mutate_if(data, function(x) is.numeric(x) && var(x) != 0, scale)
   )[, -1, drop = F]
   return (list(
     formula = formula, 

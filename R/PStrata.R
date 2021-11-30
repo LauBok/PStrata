@@ -517,16 +517,17 @@ plot.summary.PSSummary.survival <- function(summary.PSsummary, PSsummary) {
   p1 <- ggplot(long_table_hazard_ratio) + 
     geom_line(aes(x = time, y = est, group = stratum, color = stratum)) +
     geom_ribbon(aes(x = time, ymin = lwr, ymax = upr, fill = stratum), alpha = 0.3) +
+    scale_y_log10() +
     ggtitle("Hazard Ratio")
   p2 <- ggplot(long_table_hazard_curve) + 
     geom_line(aes(x = time, y = est, group = treatment, color = treatment)) +
     geom_ribbon(aes(x = time, ymin = lwr, ymax = upr, fill = treatment), alpha = 0.3) +
-    facet_wrap(~stratum) +
+    facet_wrap(~stratum, scale = "free_y") +
     ggtitle("Hazard Curve")
   p3 <- ggplot(long_table_survival_curve) + 
     geom_line(aes(x = time, y = est, group = treatment, color = treatment)) +
     geom_ribbon(aes(x = time, ymin = lwr, ymax = upr, fill = treatment), alpha = 0.3) +
-    facet_wrap(~stratum) +
+    facet_wrap(~stratum, scale = "free_y") +
     ggtitle("Survival Curve")
   (p0 + p1) / p2 / p3
 }
