@@ -116,6 +116,7 @@ std::string Object::to_string_functions() {
       "        real surv = normal_lccdf(log(x) | mu, sigma);\n"
       "        real density = normal_lpdf(log(x) | mu, sigma) - log(x);\n"
       "        return (1 - censor) * density + censor * surv;\n"
+      "    }\n"
       "}\n"
   );
   return res;
