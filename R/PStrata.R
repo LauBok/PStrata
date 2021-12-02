@@ -230,6 +230,8 @@ PSSummary.AFT <- function(PSsampleEx) {
   ), class = "PSSummary.survival"))
 }
 
+
+
 print.PSSummary.nonsurvival <- function(PSsummary) {
   cat("Estimated Proportion from Each Stratum:\n")
   prob_samples <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
@@ -331,6 +333,38 @@ summary.PSSummary.survival <- function(PSsummary, time = 1){
     hazard_curve = hazard_curve,
     hazard_ratio = hazard_ratio
   ), class = "summary.PSSummary.survival"))
+}
+
+summary.PSSummary.nonsurvival <- function(PSsummary){
+  func_summarize <- function(x) {
+    c(mean = mean(x), 
+      se_mean = ifelse(abs(sd(x)) < .Machine$double.eps, 
+                       0, 
+                       sd(x) / unname(sqrt(coda::effectiveSize(x)))), 
+      sd = sd(x), 
+      quantile(x, c(0.025, 0.25, 0.5, 0.75, 0.975)))
+  }
+  parameter <- rstan::summary(PSsummary$PSsampleEx$PSsample$stanfit)$summary
+  
+  # proportion
+  prob_samples <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
+  prob_summary <- apply(prob_samples, 1, func_summarize)
+  proportion <- t(prob_summary)
+  
+  # outcome
+  out_summary_0 <- apply(PSsummary$Overall_0, 1, func_summarize)
+  out_summary_1 <- apply(PSsummary$Overall_1, 1, func_summarize)
+  effect <- apply(PSsummary$Causal_Effect, 1, func_summarize)
+  outcome_0 <- t(out_summary_0)
+  outcome_1 <- t(out_summary_1)
+  effect <- t(effect)
+  
+  return (structure(list(
+    parameter = parameter,
+    proportion = proportion,
+    outcome = list(outcome_0 = outcome_0, outcome_1 = outcome_1),
+    effect = effect
+  ), class = "summary.PSSummary.nonsurvival"))
 }
 
 print.summary.PSSummary.nonsurvival <- function(summary.PSsummary) {
