@@ -72,7 +72,7 @@ std::string Object::to_string_data() const {
   tmp.emplace_back("int<lower=1> N;");
   tmp.emplace_back("int<lower=0, upper=1> Z[N];");
   tmp.emplace_back("int<lower=0, upper=1> D[N];");
-  if (this->Y_type == "survival")
+  if (this->Y_type == "survival" || this->Y_type == "AFT")
     tmp.emplace_back("int<lower=0, upper=1> C[N];");
   if (this->Sdim)
     tmp.emplace_back("matrix[N, " + std::to_string(this->Sdim) + "] XS;");
@@ -81,7 +81,9 @@ std::string Object::to_string_data() const {
   std::string t;
   if (this->Y_type == "continuous")
     t = "real";
-  else if (this->Y_type == "positive" || this->Y_type == "survival")
+  else if (this->Y_type == "positive" || 
+           this->Y_type == "survival" || 
+           this->Y_type == "AFT")
     t = "real<lower=0>";
   else if (this->Y_type == "binary")
     t = "int<lower=0, upper=1>";
@@ -110,6 +112,10 @@ std::string Object::to_string_functions() {
       "        real term2 = exp(mu) * pow(x, exp(theta));\n"
       "        return (1 - censor) * term1 - term2;\n"
       "    }\n"
+      "    real AFT_normal_lpdf(real x, real mu, real sigma, int censor) {\n"
+      "        real surv = normal_lccdf(log(x) | mu, sigma);\n"
+      "        real density = normal_lpdf(log(x) | mu, sigma) - log(x);\n"
+      "        return (1 - censor) * density + censor * surv;\n"
       "}\n"
   );
   return res;

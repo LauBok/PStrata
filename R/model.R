@@ -5,6 +5,13 @@ survival <- function(link = "identity") {
   ))
 }
 
+AFT <- function(link = "normal") {
+  return (list(
+    family = "survival",
+    link = link
+  ))
+}
+
 model <- function(family, formula) {
   family_chr <- family$family
   link_chr <- family$link
@@ -27,6 +34,8 @@ get_outcome_type <- function(family) {
     Y_type = "count"
   else if (family$family %in% c("survival"))
     Y_type = "survival"
+  else if (family$family %in% c("AFT"))
+    Y_type = "AFT"
   return (Y_type)
 }
 
@@ -132,5 +141,10 @@ get_dist_str <- function(PSobject, group){
     str_theta <- paste0(group_prefix, "Theta")
     str_inner <- paste0(str_mean)
     return (paste0("survival_lpdf(. | ", str_inner, ", ", str_theta, ", .)"))
+  }
+  if (family_name == "AFT") {
+    str_sigma <- paste0(group_prefix, "Sigma")
+    str_inner <- paste0(str_mean)
+    return (paste0("AFT_normal_lpdf(. | ", str_inner, ", ", str_sigma, ", .)"))
   }
 }

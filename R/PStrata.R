@@ -111,18 +111,28 @@ PSSampleEx <- function(PSobject, PSsample) {
       if (PSobject$PSsettings$Y.family$family == "survival") {
         theta[stratum, z, ] <- PSsample$post_samples[, generate_names('Y', c(stratum, zz), 'Theta')]
       }
+      if (PSobject$PSsettings$Y.family$family == "AFT") {
+        theta[stratum, z, ] <- PSsample$post_samples[, generate_names('Y', c(stratum, zz), 'Theta')]
+      }
       post_outcome_mean[stratum, z, , ] <- value
     }
   }
-  if (PSobject$PSsettings$Y.family$family != "survival") {
+  if (PSobject$PSsettings$Y.family$family != "survival" && 
+      PSobject$PSsettings$Y.family$family != "AFT") {
     post_outcome <- list(
       outcome = PSobject$PSsettings$Y.family$linkinv(post_outcome_mean)
     )
   }
-  else {
+  else if (PSobject$PSsettings$Y.family$family == "survival") {
     post_outcome <- list(
       outcome = post_outcome_mean,
       theta = theta
+    )
+  }
+  else{ # AFT
+    post_outcome <- list(
+      outcome = post_outcome_mean,
+      sigma = theta
     )
   }
 
@@ -137,13 +147,16 @@ PSSampleEx <- function(PSobject, PSsample) {
       outcome = post_outcome
     ),
     class = "PSSampleEx",
-    survival = PSobject$PSsettings$Y.family$family == "survival"
+    survival = PSobject$PSsettings$Y.family$family == "survival",
+    AFT = PSobject$PSsettings$Y.family$family == "AFT"
   ))
 }
 
 PSSummary <- function(PSsampleEx){
   if (attr(PSsampleEx, "survival"))
     return (PSSummary.survival(PSsampleEx))
+  else if (attr(PSsampleEx, "AFT"))
+    return (PSsummary.AFT(PSsampleEx))
   else
     return (PSSummary.nonsurvival(PSsampleEx))
 }
@@ -188,6 +201,35 @@ PSSummary.survival <- function(PSsampleEx) {
   ), class = "PSSummary.survival"))
 }
 
+PSSummary.AFT <- function(PSsampleEx) {
+  hazard_at <- function(time) {
+    full_dim <- dim(PSsampleEx$outcome$outcome)
+    sigma <- broadcast(extend(PSsampleEx$outcome$sigma, 3), full_dim)
+    mu <- PSsampleEx$outcome$outcome
+    log_t <- log(time)
+    x <- (log_t - mu) / sigma
+    log_S <- pnorm(x, lower.tail = F, log.p = T)
+    log_f <- dnorm(x, log = T) - log_t - log(sigma)
+    log_lambda <- log_f - log_S
+    prob <- broadcast(extend(PSsampleEx$prob_const, c(2)), full_dim)
+    survival_curve <- apply(exp(log_S) * prob, c(1,2,4), mean) / apply(prob, c(1,2,4), mean)
+    max_log <- max(log_S, log_S + log_lambda)
+    hazard <- apply(exp(log_S + log_lambda - max_log) * prob, c(1,2,4), mean) / 
+      apply(exp(log_S - max_log) * prob, c(1,2,4), mean)
+    hazard_ratio <- hazard[, "1",] / hazard[, "0",]
+    return (list(
+      survival_curve = survival_curve,
+      hazard_curve = hazard,
+      hazard_ratio = hazard_ratio
+    ))
+  }
+  
+  return (structure(list(
+    PSsampleEx = PSsampleEx,
+    hazard_at = hazard_at
+  ), class = "PSSummary.survival"))
+}
+
 print.PSSummary.nonsurvival <- function(PSsummary) {
   cat("Estimated Proportion from Each Stratum:\n")
   prob_samples <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
@@ -220,37 +262,6 @@ print.PSSummary.survival <- function(PSsummary) {
   cat('\n')
 }
 
-summary.PSSummary.nonsurvival <- function(PSsummary){
-  func_summarize <- function(x) {
-    c(mean = mean(x), 
-      se_mean = ifelse(abs(sd(x)) < .Machine$double.eps, 
-                       0, 
-                       sd(x) / unname(sqrt(coda::effectiveSize(x)))), 
-      sd = sd(x), 
-      quantile(x, c(0.025, 0.25, 0.5, 0.75, 0.975)))
-  }
-  parameter <- rstan::summary(PSsummary$PSsampleEx$PSsample$stanfit)$summary
-  
-  # proportion
-  prob_samples <- apply(PSsummary$PSsampleEx$prob_const, c(1, 3), mean)
-  prob_summary <- apply(prob_samples, 1, func_summarize)
-  proportion <- t(prob_summary)
-  
-  # outcome
-  out_summary_0 <- apply(PSsummary$Overall_0, 1, func_summarize)
-  out_summary_1 <- apply(PSsummary$Overall_1, 1, func_summarize)
-  effect <- apply(PSsummary$Causal_Effect, 1, func_summarize)
-  outcome_0 <- t(out_summary_0)
-  outcome_1 <- t(out_summary_1)
-  effect <- t(effect)
-  
-  return (structure(list(
-    parameter = parameter,
-    proportion = proportion,
-    outcome = list(outcome_0 = outcome_0, outcome_1 = outcome_1),
-    effect = effect
-  ), class = "summary.PSSummary.nonsurvival"))
-}
 
 summary.PSSummary.survival <- function(PSsummary, time = 1){
   func_summarize <- function(x) {
