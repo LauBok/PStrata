@@ -7,7 +7,7 @@ survival <- function(link = "identity") {
 
 AFT <- function(link = "normal") {
   return (list(
-    family = "survival",
+    family = "AFT",
     link = link
   ))
 }
@@ -66,6 +66,10 @@ get_param_from_model <- function(model, data) {
   else if (model$family == "survival")
     param_list <- c(param_list, list(list(
       type = "real", prior_type = "prior_theta", name = "Theta"
+    )))
+  else if (model$family == "AFT")
+    param_list <- c(param_list, list(list(
+      type = "positive", prior_type = "prior_sigma", name = "Sigma"
     )))
   return (param_list)
 }

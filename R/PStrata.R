@@ -112,7 +112,7 @@ PSSampleEx <- function(PSobject, PSsample) {
         theta[stratum, z, ] <- PSsample$post_samples[, generate_names('Y', c(stratum, zz), 'Theta')]
       }
       if (PSobject$PSsettings$Y.family$family == "AFT") {
-        theta[stratum, z, ] <- PSsample$post_samples[, generate_names('Y', c(stratum, zz), 'Theta')]
+        theta[stratum, z, ] <- PSsample$post_samples[, generate_names('Y', c(stratum, zz), 'Sigma')]
       }
       post_outcome_mean[stratum, z, , ] <- value
     }
@@ -156,7 +156,7 @@ PSSummary <- function(PSsampleEx){
   if (attr(PSsampleEx, "survival"))
     return (PSSummary.survival(PSsampleEx))
   else if (attr(PSsampleEx, "AFT"))
-    return (PSsummary.AFT(PSsampleEx))
+    return (PSSummary.AFT(PSsampleEx))
   else
     return (PSSummary.nonsurvival(PSsampleEx))
 }
