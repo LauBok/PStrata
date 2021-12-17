@@ -30,7 +30,7 @@ get_outcome_type <- function(family) {
     Y_type = "binary"
   else if (family$family %in% c("Gamma", "inverse.gaussian"))
     Y_type = "positive"
-  else if (family$family %in% c("poission"))
+  else if (family$family %in% c("poisson"))
     Y_type = "count"
   else if (family$family %in% c("survival"))
     Y_type = "survival"
