@@ -672,7 +672,6 @@ summary.PStrata <- function(pstrata) {
   summary(pstrata$PSsummary)
 }
 
-
 plot_prob_prob_one <- function(num_draw, post_prob, post_stratum_samples) {
   post_stratum <- post_stratum_samples[, num_draw]
   prob <- post_prob[,, num_draw]
@@ -688,5 +687,5 @@ plot_prob_prob_one <- function(num_draw, post_prob, post_stratum_samples) {
 }
 
 plot.PStrata <- function(res, ...){
-  plot(res$outcome, ...)
+  plot(res$PSsummary, ...)
 }
