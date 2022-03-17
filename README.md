@@ -67,7 +67,7 @@
       - `prior_inv_gamma(alpha = 1, beta = 1)`
       - `prior_weibull(alpha = 1, sigma = 1)`
 
-
+- `...`: you can include any additional parameters for the stan sampler, including `chains`, `iter`, `warmup`, `refresh`, `verbose`, etc.
 ### Output:
 A `PStrata` object, including
 - `PSobject`: contains information of the model;
