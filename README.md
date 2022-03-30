@@ -2,7 +2,7 @@
 
 -----------
 
-### Function `PS(S.formula, Y.formula, Y.family, data, monotonicity = "default", ER = c(), trunc = TRUE, prior_intercept = prior_uniform(), prior_coefficient = prior_normal(), prior_sigma = prior_inv_gamma(), prior_alpha = prior_inv_gamma(), prior_lambda = prior_inv_gamma(), prior_theta = prior_normal(), ...)`
+### Function `PStrata(S.formula, Y.formula, Y.family, data, monotonicity = "default", ER = c(), trunc = TRUE, prior_intercept = prior_uniform(), prior_coefficient = prior_normal(), prior_sigma = prior_inv_gamma(), prior_alpha = prior_inv_gamma(), prior_lambda = prior_inv_gamma(), prior_theta = prior_normal(), ...)`
 
 - `S.formula`: the treatment variable `Z`, the intervention variable `D`, and the (softmax) model for the stratum that a unit belongs to.
   - Example: `Z + D ~ X1 + X2`
