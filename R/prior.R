@@ -1,7 +1,21 @@
-prior_uniform <- function() {
+#' Prior functions
+#' 
+#' Define prior functions used in \code{PStrata}.
+#' 
+#' @param ... parameters for the prior distribution
+#' @return A list, including the following items.
+#' \describe{
+#' \item{name}{name of the distribution}
+#' \item{type}{type of the distribution, one character string of "real" or "positive"}
+#' \item{args}{a named list of all the input parameters}
+#' \item{call}{a function call object of the prior distribution on the parameters}
+#' }
+#' 
+
+prior_flat <- function() {
   return (
     list(
-      name = "uniform",
+      name = "flat",
       type = "real",
       args = list(),
       call = NULL

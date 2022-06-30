@@ -7,355 +7,425 @@
 using namespace Rcpp;
 
 // [[Rcpp::plugins(cpp17)]]
-
-template <class Iterable, class func>
-std::string concat(Iterable container, const std::string& delim, func f){
-  std::string res;
-  for (auto p = container.begin(); p != container.end(); ++p){
-    if (p != container.begin())
-      res += delim;
-    res += f(*p);
+std::vector<std::string> split (const std::string &s, std::string delimiter) {
+  std::size_t pos_start = 0, pos_end, delim_len = delimiter.length();
+  std::string token;
+  std::vector<std::string> res;
+  
+  while ((pos_end = s.find(delimiter, pos_start)) != std::string::npos) {
+    token = s.substr (pos_start, pos_end - pos_start);
+    pos_start = pos_end + delim_len;
+    res.push_back (token);
   }
+  
+  res.push_back (s.substr (pos_start));
   return res;
 }
 
-std::string replace(const std::string& text, const char cls){
-  std::string res;
-  bool replaceable = true;
-  for (char c: text){
-    if (c == '|')
-      replaceable = false;
-    if (c == '.') {
-      res += replaceable ? "Y[n]" : "C[n]";
-      continue;
+class Data {
+private:
+  std::map<std::pair<unsigned int, unsigned int>, 
+           std::set<std::pair<unsigned int, unsigned int>>> SZDG_table;
+  unsigned int S_max = 0, Z_max = 0, D_max = 0, G_max = 0;
+  unsigned int S_re = 0, Y_re = 0;
+  std::string Y_type, Y_family, Y_link;
+  std::string func_family, func_link;
+  std::vector<std::pair<std::string, std::string>> parameters;
+  std::vector<std::tuple<std::string, std::string, std::vector<double>>> prior;
+public:
+  Data(const std::string& file_name) {
+    std::fstream input(file_name);
+    std::string ctrl;
+    while (input >> ctrl) {
+      if (ctrl == "SZDG") {
+        unsigned int s, z, d, g;
+        input >> s >> z >> d >> g;
+        std::cout << s << ' ' << z << ' ' << d << ' ' << g << std::endl;
+        SZDG_table[std::make_pair(z, d)].insert(std::make_pair(s, g));
+        S_max = std::max(S_max, s);
+        Z_max = std::max(Z_max, z);
+        D_max = std::max(D_max, d);
+        G_max = std::max(G_max, g);
+      }
+      else if (ctrl == "Y") {
+        input >> this->Y_family >> this->Y_link;
+      }
+      else if (ctrl == "random") {
+        std::string var;
+        input >> var;
+        if (var == "S") input >> this->S_re;
+        else if (var == "Y") input >> this->Y_re;
+      }
+      else if (ctrl == "prior") {
+        std::string type, func;
+        input >> type >> func;
+        std::vector<double> tmp_param;
+        int n;
+        input >> n;
+        for (int i = 0; i < n; ++i){
+          double param;
+          input >> param;
+          tmp_param.push_back(param);
+        }
+        prior.emplace_back(type, func, tmp_param);
+      }
     }
-    if (c == '$'){
-      res += std::string("X") + cls + "[n]";
+    input.close();
+    input = std::fstream("files_do_not_modify/family_info.txt");
+    std::string type, family, family_func, link, link_func;
+    int param_count;
+    while (input >> family >> type >> family_func >> param_count) {
+      for (int k = 0; k < param_count; ++k) {
+        std::string param_name, param_type;
+        input >> param_name >> param_type;
+        if (family == Y_family)
+          parameters.emplace_back(param_name, param_type);
+      }
+      if (family == Y_family) {
+        func_family = family_func;
+        Y_type = type;
+        break;
+      }
     }
-    else
-      res += c;
+    input.close();
+    
+    input = std::fstream("files_do_not_modify/link_info.txt");
+    while (input >> family >> link >> link_func) {
+      if (family == Y_family && link == Y_link) {
+        func_link = link_func;
+        break;
+      }
+    }
+    input.close();
   }
-  return res;
-}
-
-struct Object{
-  std::string Y_type;
-  std::vector<std::string> P_name;
-  std::vector<std::string> P_type;
-  std::vector<std::string> P_model;
-  std::vector<int> S;
-  int Sdim;
-  int Ydim;
-  std::map<std::pair<int, int>, std::vector<int>> ZDS;
-  std::map<int, std::string> S_model;
-  std::map<std::pair<int, int>, std::string> Y_model;
-  static std::string to_string_functions() ;
-  std::string to_string_data() const;
-  std::string to_string_parameters() const;
-  std::string _to_string_prior() const;
-  std::string _to_string_S() const;
-  std::string _to_string_len() const;
-  std::string _to_string_latent() const;
-  std::string to_string() const;
-  Object ();
-  void write_to_file(const std::string& filename) const;
+  
+  std::string to_stan_functions() const {
+    std::fstream input = std::fstream("files_do_not_modify/function_implement.txt");
+    std::string str;
+    bool aim = false;
+    for (std::string line; std::getline(input, line); ){
+      if (line == "<<<>>>") aim = false;
+      if (!aim) {
+        auto splitted = split(line, " ");
+        if (splitted[0] == "<<<") {
+          std::string func_name = splitted[1];
+          if (func_name == func_family || func_name == func_link) {
+            aim = true;
+          }
+        }
+        continue;
+      }
+      else {
+        str += "    " + line + "\n";
+      }
+    }
+    input.close();
+    if (!str.empty())
+      str = "functions {\n" + str + "}\n";
+    return str;
+  }
+  
+  std::string to_stan_data() const {
+    std::string str;
+    str += "data {\n";
+    str += "    int<lower=0> N;\n";
+    str += "    int<lower=0> PS;\n";
+    str += "    int<lower=0> PG;\n";
+    str += "    int<lower=0, upper=" + std::to_string(Z_max) + "> Z[N];\n";
+    str += "    int<lower=0, upper=" + std::to_string(D_max) + "> D[N];\n";
+    std::string Y_str;
+    if (Y_type == "real") Y_str = "real Y[N];";
+    else if (Y_type == "positive") Y_str = "real<lower=0> Y[N];";
+    else if (Y_type == "binary") Y_str = "int<lower=0, upper=1> Y[N];";
+    else if (Y_type == "count") Y_str = "int<lower=0> Y[N];";
+    str += "    " + Y_str + "\n";
+    str += "    matrix[N, PS] XS;\n";
+    str += "    matrix[N, PG] XG;\n";
+    for (int i = 0; i < S_re; ++i) {
+      std::string tmp_P = "PS_RE_" + std::to_string(i + 1);
+      std::string tmp_N = "NS_RE_" + std::to_string(i + 1);
+      std::string tmp_X = "XS_RE_" + std::to_string(i + 1);
+      str += "    int<lower=0> " + tmp_P + ";\n";
+      str += "    int<lower=0> " + tmp_N + ";\n";
+      str += "    matrix[N, " + tmp_P + "*" + tmp_N + "] " + tmp_X + ";\n";
+    }
+    for (int i = 0; i < Y_re; ++i) {
+      std::string tmp_P = "PG_RE_" + std::to_string(i + 1);
+      std::string tmp_N = "NG_RE_" + std::to_string(i + 1);
+      std::string tmp_X = "XG_RE_" + std::to_string(i + 1);
+      str += "    int<lower=0> " + tmp_P + ";\n";
+      str += "    int<lower=0> " + tmp_N + ";\n";
+      str += "    matrix[N, " + tmp_P + "*" + tmp_N + "] " + tmp_X + ";\n";
+    }
+    str += "}\n";
+    return (str);
+  };
+  
+  std::string to_stan_transformed_data() const {
+    std::string str;
+    str += "transformed data {\n";
+    str += "    int S[" + std::to_string(G_max + 1) + "];\n";
+    std::set<std::pair<unsigned int, unsigned int>> tmpset;
+    for (auto zdsg: SZDG_table) {
+      for (auto sg : zdsg.second) {
+        tmpset.insert(sg);
+      }
+    }
+    for (auto sg: tmpset){
+      unsigned int s = sg.first, g = sg.second;
+      str += "    S[" + std::to_string(g + 1) + "] = " + std::to_string(s + 1) + ";\n";
+    }
+    str += "}\n";
+    return (str);
+  }
+  std::string to_stan_parameters() const {
+    std::string S_str = std::to_string(S_max); // always zero for S == 0, so omit that.
+    std::string G_str = std::to_string(1 + G_max);
+    std::string str;
+    str += "parameters {\n";
+    str += "    matrix[" + S_str + ", PS] beta_S;\n";
+    str += "    matrix[" + G_str + ", PG] beta_G;\n";
+    for (int i = 0; i < S_re; ++i) {
+      std::string tmp_P = "PS_RE_" + std::to_string(i + 1);
+      std::string tmp_N = "NS_RE_" + std::to_string(i + 1);
+      std::string tmp_X = "XS_RE_" + std::to_string(i + 1);
+      std::string tmp_beta = "beta_S_RE_" + std::to_string(i + 1);
+      str += "    matrix[" + S_str + ", " + tmp_P + "*" + tmp_N + "] " + tmp_beta + ";\n";
+      str += "    real<lower = 0> tau_S_RE_" + std::to_string(i + 1) + "[" + S_str + ", " + tmp_P + "];\n";
+    }
+    for (int i = 0; i < Y_re; ++i) {
+      std::string tmp_P = "PG_RE_" + std::to_string(i + 1);
+      std::string tmp_N = "NG_RE_" + std::to_string(i + 1);
+      std::string tmp_X = "XG_RE_" + std::to_string(i + 1);
+      std::string tmp_beta = "beta_G_RE_" + std::to_string(i + 1);
+      str += "    matrix[" + G_str + ", " + tmp_P + "*" + tmp_N + "] " + tmp_beta + ";\n";
+      str += "    real<lower = 0> tau_G_RE_" + std::to_string(i + 1) + "[" + G_str + ", " + tmp_P + "];\n";
+    }
+    for (auto &p : parameters) {
+      std::string type_str;
+      if (p.second == "real") type_str = "real";
+      else if (p.second == "positive") type_str = "real<lower=0>";
+      str += "    " + type_str + " " + p.first + "[" + G_str + "];\n";
+    }
+    str += "}\n";
+    return str;
+  }
+  
+  std::string to_stan_transformed_parameters() const {
+    std::string S_str = std::to_string(S_max); // always zero for S == 0, so omit that.
+    std::string G_str = std::to_string(1 + G_max);
+    std::string str;
+    str += "transformed parameters {\n";
+    for (int i = 0; i < S_re; ++i) {
+      std::string tmp_P = "PS_RE_" + std::to_string(i + 1);
+      std::string tmp_N = "NS_RE_" + std::to_string(i + 1);
+      std::string tmp_beta = "beta_S_RE_" + std::to_string(i + 1);
+      str += "    matrix[" + tmp_N + ", " + tmp_P + "] M_" + tmp_beta + "[" + S_str + "];\n";
+    }
+    for (int i = 0; i < Y_re; ++i) {
+      std::string tmp_P = "PG_RE_" + std::to_string(i + 1);
+      std::string tmp_N = "NG_RE_" + std::to_string(i + 1);
+      std::string tmp_beta = "beta_G_RE_" + std::to_string(i + 1);
+      str += "    matrix[" + tmp_N + ", " + tmp_P + "] M_" + tmp_beta + "[" + G_str + "];\n";
+    }
+    for (int i = 0; i < S_re; ++i) {
+      str += "    for (i in 1:" + S_str + "){\n";
+      for (int j = 0; j < S_max; ++j) {
+        std::string tmp_P = "PS_RE_" + std::to_string(i + 1);
+        std::string tmp_N = "NS_RE_" + std::to_string(i + 1);
+        std::string tmp_beta = "beta_S_RE_" + std::to_string(i + 1);
+        str += "        M_" + tmp_beta + "[" + std::to_string(j + 1) + "] = to_matrix(" + tmp_beta + "[" + std::to_string(j + 1) + "]" + ", " + tmp_N + ", " + tmp_P + ", 0);\n";
+      }
+      str += "    }\n";
+    }
+    for (int i = 0; i < Y_re; ++i) {
+      str += "    for (i in 1:" + S_str + "){\n";
+      for (int j = 0; j <= G_max; ++j) {
+        std::string tmp_P = "PG_RE_" + std::to_string(i + 1);
+        std::string tmp_N = "NG_RE_" + std::to_string(i + 1);
+        std::string tmp_beta = "beta_G_RE_" + std::to_string(i + 1);
+        str += "        M_" + tmp_beta + "[" + std::to_string(j + 1) + "] = to_matrix(" + tmp_beta + "[" + std::to_string(j + 1) + "]" + ", " + tmp_N + ", " + tmp_P + ", 0);\n";
+      }
+      str += "    }\n";
+    }
+    str += "}\n\n";
+    return str;
+  }
+  
+  std::string to_stan_model() const {
+    std::string str_sp1 = std::to_string(S_max + 1);
+    std::string str;
+    str += "model {\n";
+    
+    // random effect
+    
+    for (int i = 0; i < S_re; ++i) {
+      std::string tmp_P = "PS_RE_" + std::to_string(i + 1);
+      std::string tmp_N = "NS_RE_" + std::to_string(i + 1);
+      std::string tmp_X = "XS_RE_" + std::to_string(i + 1);
+      std::string tmp_tau = "tau_S_RE_" + std::to_string(i + 1);
+      std::string tmp_beta = "beta_S_RE_" + std::to_string(i + 1);
+      str += "    for (i in 1:" + std::to_string(S_max) + ") {\n";
+      str += "        " + tmp_tau + "[i] ~ inv_gamma(1, 1);\n";
+      str += "        for (j in 1:" + tmp_P + ") {\n";
+      str += "            M_" + tmp_beta + "[i][:, j] ~ normal(0, " + tmp_tau + "[i, j]); \n";
+      str += "        }\n";
+      str += "    }\n";
+    }
+    
+    for (int i = 0; i < Y_re; ++i) {
+      std::string tmp_P = "PG_RE_" + std::to_string(i + 1);
+      std::string tmp_N = "NG_RE_" + std::to_string(i + 1);
+      std::string tmp_X = "XG_RE_" + std::to_string(i + 1);
+      std::string tmp_tau = "tau_G_RE_" + std::to_string(i + 1);
+      std::string tmp_beta = "beta_G_RE_" + std::to_string(i + 1);
+      str += "    for (i in 1:" + std::to_string(G_max + 1) + ") {\n";
+      str += "        " + tmp_tau + "[i] ~ inv_gamma(1, 1);\n";
+      str += "        for (j in 1:" + tmp_P + ") {\n";
+      str += "            M_" + tmp_beta + "[i][:, j] ~ normal(0, " + tmp_tau + "[i, j]); \n";
+      str += "        }\n";
+      str += "    }\n";
+    }
+    
+    // prior
+    for (auto& prior_info : prior) {
+      std::string type = std::get<0>(prior_info);
+      std::string func = std::get<1>(prior_info);
+      std::vector<double> params = std::get<2>(prior_info);
+      std::string params_str;
+      for (auto param: params) {
+        if (!params_str.empty())
+          params_str += ", ";
+        params_str += std::to_string(param);
+      }
+      if (func == "flat")
+        continue;
+      if (type == "intercept") {
+        str += "    beta_S[:, 1] ~ " + func + "(" + params_str + ");\n";
+        str += "    beta_G[:, 1] ~ " + func + "(" + params_str + ");\n";
+      }
+      else if (type == "coefficient") {
+        str += "    to_vector(beta_S[:, 2:PS]) ~ " + func + "(" + params_str + ");\n";
+        str += "    to_vector(beta_G[:, 2:PG]) ~ " + func + "(" + params_str + ");\n";
+      }
+      else {
+        bool found = false;
+        for (auto& param : parameters)
+          if (type == param.first) {
+            found = true;
+            break;
+          }
+          if (found) {
+            str += "    " + type + " ~ " + func + "(" + params_str + ");\n";
+          }
+      }
+    }
+    
+    str += "    for (n in 1:N) {\n";
+    str += "        int length;\n";
+    str += "        real log_prob[" + str_sp1 + "];\n";
+    str += "        log_prob[1] = 0;\n";
+    str += "        for (s in 2:" + str_sp1 + ") {\n";
+    str += "            log_prob[s] = XS[n] * beta_S[s - 1]'";
+    for (int i = 0; i < S_re; ++i) {
+      str += " + XS_RE_" + std::to_string(i + 1) + "[n] * beta_S_RE_" + std::to_string(i + 1) + "[s - 1]'";
+    }
+    str += ";\n";
+    str += "        }\n";
+    bool b_else = false;
+    for (auto &p : SZDG_table) {
+      auto z = p.first.first, d = p.first.second;
+      auto sg_set = p.second;
+      str += "        " + (b_else?std::string("else "):std::string("")) + "if (" +
+        "Z[n] == " + std::to_string(z) + " && D[n] == " + std::to_string(d) + ")\n";
+      str += "            length = " + std::to_string(sg_set.size()) + ";\n";
+      b_else = true;
+    }
+    str += "        {\n";
+    str += "            real log_l[length];\n";
+    b_else = false;
+    for (auto &p : SZDG_table) {
+      auto z = p.first.first, d = p.first.second;
+      auto sg_set = p.second;
+      str += "            " + (b_else?std::string("else "):std::string("")) + "if (" +
+        "Z[n] == " + std::to_string(z) + " && D[n] == " + std::to_string(d) + ") {\n";
+      str += "                // strata:";
+      for (auto &sg : sg_set) str += " " + std::to_string(sg.first);
+      str += "\n";
+      int i = 0;
+      for (auto &sg : sg_set) {
+        unsigned int s = sg.first, g = sg.second;
+        std::string str_param;
+        for (auto &p : parameters) {
+          str_param += ", " + p.first + "[" + std::to_string(g + 1) + "]";
+        }
+        str += "                log_l[" + std::to_string(++i) + "] = log_prob[" +
+          std::to_string(s + 1) + "] + " +
+          func_family + "(Y[n] | " + func_link + "(" +
+          "XG[n] * beta_G[" + std::to_string(g + 1) + "]'";
+        for (int i = 0; i < Y_re; ++i) {
+          str += " + XG_RE_" + std::to_string(i + 1) + "[n] * beta_G_RE_" + std::to_string(i + 1) + "[" + std::to_string(g + 1) + "]'";
+        }
+        str += ")" + str_param + ");\n";
+      }
+      str += "            }\n";
+      b_else = true;
+    }
+    str += "            target += log_sum_exp(log_l) - log_sum_exp(log_prob);\n";
+    str += "        }\n";
+    str += "    }\n";
+    str += "}\n";
+    return str;
+  }
+  std::string to_stan_generated_quantities() const {
+    std::string S_str = std::to_string(S_max + 1);
+    std::string G_str = std::to_string(G_max + 1);
+    std::string str = "generated quantities {\n";
+    str += "    vector[" + G_str + "] mean_effect;\n";
+    str += "    {\n";
+    str += "        matrix[N, " + G_str + "] expected_mean = XG * beta_G'";
+    for (int i = 0; i < Y_re; ++i) {
+      str += " + XG_RE_" + std::to_string(i + 1) + " * beta_G_RE_" + std::to_string(i + 1) + "'";
+    }
+    str += ";\n";
+    str += "        matrix[N, " + S_str + "] log_prob;\n";
+    str += "        vector[" + S_str + "] denom;\n";
+    str += "        vector[" + G_str + "] numer;\n";
+    str += "        log_prob[:, 1] = rep_vector(0, N);\n";
+    str += "        log_prob[:, 2:" + S_str + "] = XS * beta_S'";
+    for (int i = 0; i < S_re; ++i) {
+      str += " + XS_RE_" + std::to_string(i + 1) + " * beta_S_RE_" + std::to_string(i + 1) + "'";
+    }
+    str += ";\n";
+    str += "        for (n in 1:N) {\n";
+    str += "            log_prob[n] -= log_sum_exp(log_prob[n]);\n";
+    str += "        }\n";
+    str += "        for (s in 1:" + S_str + ") denom[s] = mean(exp(log_prob[:, s]));\n";
+    str += "        for (g in 1:" + G_str + ") {\n";
+    str += "            numer[g] = mean(expected_mean[:, g] .* exp(log_prob[:, S[g]]));\n";
+    str += "            mean_effect[g] = numer[g] / denom[S[g]];\n";
+    str += "        }\n";
+    str += "    }\n";
+    str += "}\n";
+    return (str);
+  }
+  void print_info() const {
+    std::cout << S_max << ' ' << Z_max << ' ' << D_max << ' ' << G_max << std::endl;
+    std::cout << Y_type << ' ' << Y_family << ' ' << Y_link << std::endl;
+  }
 };
-
-Object::Object() {
-  for (int z : {0, 1})
-    for (int d: {0, 1})
-      ZDS[std::make_pair(z, d)] = std::vector<int>();
-}
-
-std::string Object::to_string_data() const {
-  std::vector<std::string> tmp;
-  tmp.emplace_back("int<lower=1> N;");
-  tmp.emplace_back("int<lower=0, upper=1> Z[N];");
-  tmp.emplace_back("int<lower=0, upper=1> D[N];");
-  if (this->Y_type == "survival" || this->Y_type == "AFT")
-    tmp.emplace_back("int<lower=0, upper=1> C[N];");
-  if (this->Sdim)
-    tmp.emplace_back("matrix[N, " + std::to_string(this->Sdim) + "] XS;");
-  if (this->Ydim)
-    tmp.emplace_back("matrix[N, " + std::to_string(this->Ydim) + "] XY;");
-  std::string t;
-  if (this->Y_type == "continuous")
-    t = "real";
-  else if (this->Y_type == "positive" || 
-           this->Y_type == "survival" || 
-           this->Y_type == "AFT")
-    t = "real<lower=0>";
-  else if (this->Y_type == "binary")
-    t = "int<lower=0, upper=1>";
-  else if (this->Y_type == "count")
-    t = "int<lower=0>";
-  tmp.push_back(t + " Y[N];");
-  std::string res("data {\n");
-  for (auto & s : tmp){
-    res += std::string(4, ' ') + s + "\n";
-  }
-  res += "}\n";
-  return res;
-}
-
-std::string Object::to_string_functions() {
-  std::string res(
-      ""
-      "functions {\n"
-      "    real inv_gaussian_lpdf(real x, real mu, real lambda) {\n"
-      "        real constant = log(lambda) / 2.0 - log(2 * pi()) / 2.0;\n"
-      "        real kernel = - 1.5 * log(x) - lambda * pow(x - mu, 2) / (2 * x * pow(mu, 2));\n"
-      "        return constant + kernel;\n"
-      "    }\n"
-      "    real survival_lpdf(real x, real mu, real theta, int censor) {\n"
-      "        real term1 = theta + mu + (exp(theta) - 1) * log(x);\n"
-      "        real term2 = exp(mu) * pow(x, exp(theta));\n"
-      "        return (1 - censor) * term1 - term2;\n"
-      "    }\n"
-      "    real AFT_normal_lpdf(real x, real mu, real sigma, int censor) {\n"
-      "        real surv = normal_lccdf(log(x) | mu, sigma);\n"
-      "        real density = normal_lpdf(log(x) | mu, sigma) - log(x);\n"
-      "        return (1 - censor) * density + censor * surv;\n"
-      "    }\n"
-      "}\n"
-  );
-  return res;
-}
-
-std::string Object::to_string_parameters() const {
-  std::vector<std::string> tmp;
-  for (unsigned int i = 0; i < this->P_name.size(); ++i){
-    std::string t;
-    if (this->P_type[i] == "real")
-      t = "real";
-    else if (this->P_type[i] == "positive")
-      t = "real<lower=0>";
-    else
-      t = this->P_type[i];
-    tmp.push_back(t + " " + this->P_name[i] + ';');
-  }
-  std::string res("parameters {\n");
-  for (auto & s : tmp){
-    res += std::string(4, ' ') + s + "\n";
-  }
-  res += "}\n";
-  return res;
-}
-
-std::string Object::_to_string_prior() const {
-  std::string res;
-  for (unsigned int i = 0; i < this->P_name.size(); ++i){
-    if (this->P_model[i] == "uniform()")
-      continue;
-    res += std::string(4, ' ') +
-      this->P_name[i] + " ~ " +
-      this->P_model[i] + ";\n";
-  }
-  return res;
-}
-
-std::string Object::_to_string_S() const {
-  std::string res;
-  for (auto& s: this->S_model){
-    res += std::string(8, ' ') +
-      "real log_prob_" + std::to_string(s.first) + " = " +
-      s.second + ";\n";
-  }
-  res += std::string(8, ' ') +
-    "real log_prob_all = log_sum_exp({" +
-    concat(this->S_model, ", ",
-           [](const std::pair<int, std::string>& p){
-             return std::string("log_prob_") + std::to_string(p.first);
-           }) +
-             "});\n";
-  return res;
-}
-
-std::string Object::_to_string_len() const {
-  std::string blank(8, ' ');
-  std::string res;
-  res += blank + "int length;\n";
-  bool _else = false;
-  for (int z: {0, 1}){
-    for (int d: {0, 1}){
-      std::vector<int> tmp;
-      if (this->ZDS.find(std::make_pair(z, d)) != this->ZDS.end())
-        tmp = this->ZDS.at(std::make_pair(z, d));
-      if (!tmp.empty()){
-        res += blank + (_else ? "else if ": "if ") + "(" +
-          "Z[n] == " + std::to_string(z) + " && " +
-          "D[n] == " + std::to_string(d) + ")\n";
-        res += blank + std::string(4, ' ') +
-          "length = " + std::to_string(tmp.size()) + ";\n";
-        _else = true;
-      }
-    }
-  }
-  return res;
-}
-
-std::string Object::_to_string_latent() const {
-  std::string blank(12, ' ');
-  std::string res;
-  res += std::string(8, ' ') + "{\n";
-  res += blank + "real log_l[length];\n";
-  bool _else = false;
-  for (int z: {0, 1}){
-    for (int d: {0, 1}){
-      std::vector<int> tmp;
-      if (this->ZDS.find(std::make_pair(z,d)) != this->ZDS.end())
-        tmp = this->ZDS.at(std::make_pair(z, d));
-      if (!tmp.empty()){
-        res += blank + (_else ? "else if ": "if ") + "(" +
-          "Z[n] == " + std::to_string(z) + " && " +
-          "D[n] == " + std::to_string(d) + ") {\n";
-        res += blank + std::string(4, ' ') + "// strata: " +
-          concat(tmp, ", ", [](int c) {return std::to_string(c);}) +
-          "\n";
-        for (unsigned int i = 0; i < tmp.size(); ++i){
-          res += blank + std::string(4, ' ') +
-            "log_l[" + std::to_string(i + 1) + "] = " +
-            "log_prob_" + std::to_string(tmp[i]) + " + " +
-            this->Y_model.at(std::make_pair(tmp[i], z)) + ";\n";
-        }
-        res += blank + "}\n";
-      }
-      _else = true;
-    }
-  }
-  res += blank + "target += log_sum_exp(log_l) - log_prob_all;\n";
-  res += std::string(8, ' ') + "}\n";
-  return res;
-}
-
-std::string Object::to_string() const {
-  std::string res;
-  res += this->to_string_functions();
-  res += this->to_string_data();
-  res += this->to_string_parameters();
-  res += "model {\n";
-  res += this->_to_string_prior();
-  res += std::string(4, ' ') + "for (n in 1:N) {\n";
-  res += this->_to_string_S();
-  res += this->_to_string_len();
-  res += this->_to_string_latent();
-  res += std::string(4, ' ') + "}\n";
-  res += "}\n";
-  return res;
-}
-
-void Object::write_to_file(const std::string& filename) const {
-  std::ofstream file(filename);
-  file << this->to_string();
-  file.close();
-}
-
-std::vector<std::string> readfile(const std::string& filename){
-  std::vector<std::string> buffer;
-  std::ifstream file(filename);
-  if (file.is_open()) {
-    std::string line;
-    while (std::getline(file, line)) {
-      buffer.push_back(line);
-    }
-    file.close();
-  }
-  return buffer;
-}
-
-std::vector<std::string> split(const std::string& str, char delim){
-  std::vector<std::string> tokens;
-  auto l = str.begin();
-  auto r = str.begin();
-  while (true) {
-    while (*l == ' ' || *l == '\t' || *l == '\n')
-      ++l, ++r;
-    while (r != str.end() && *r != delim) {
-      ++r;
-    }
-    tokens.emplace_back(l, r);
-    if (r == str.end())
-      return tokens;
-    else
-      l = ++r;
-  }
-}
-
-template <typename T>
-T parse_parameter_prior(T it, Object& obj){
-  while (*(++it) != "}"){
-    auto info = split(*it, '~');
-    auto info_left = split(info[0], ' ');
-    auto type = info_left[0].substr(1, info_left[0].size() - 2);
-    auto name = info_left[1];
-    auto prior = info[1];
-    obj.P_name.push_back(name);
-    obj.P_type.push_back(type);
-    obj.P_model.push_back(prior);
-  }
-  return it;
-}
-
-template <typename T>
-T parse_strata(T it, Object& obj) {
-  while (*(++it) != "}") {
-    auto tokens = split(*it, ':');
-    obj.S_model[std::stoi(tokens[0])] = replace(tokens[1], 'S');
-  }
-  return it;
-}
-
-template <typename T>
-T parse_outcome(T it, Object& obj) {
-  while (*(++it) != "}") {
-    auto tokens = split(*it, ':');
-    auto token_ids = split(tokens[0], ',');
-    obj.Y_model[
-    std::make_pair(std::stoi(token_ids[0]), std::stoi(token_ids[1]))
-    ] = replace(tokens[1], 'Y');
-  }
-  return it;
-}
-
-Object parse(const std::vector<std::string>& buffer){
-  Object obj;
-  auto it = buffer.begin();
-  while (it != buffer.end()) {
-    if (it->rfind("Y:", 0) == 0) {
-      // Y type
-      obj.Y_type = split(*it, ':')[1];
-    } else if (it->rfind("S:", 0) == 0) {
-      // strata
-      auto tokens = split(split(*it, ':')[1], ' ');
-      for (const auto& token : tokens) {
-        int num = std::stoi(token);
-        obj.S.push_back(num);
-        for (int z : {0, 1}){
-          obj.ZDS[std::make_pair(z, z == 0? num >> 1: num & 1)].push_back(num);
-        }
-      }
-    } else if (it->rfind("Dim: ", 0) == 0) {
-      // Dims
-      auto tokens = split(split(*it, ':')[1], ' ');
-      obj.Sdim = std::stoi(tokens[0]);
-      obj.Ydim = std::stoi(tokens[1]);
-    } else if (it->rfind("parameter", 0) == 0) {
-      it = parse_parameter_prior(it, obj);
-    } else if (it->rfind("strata", 0) == 0){
-      it = parse_strata(it, obj);
-    } else if (it->rfind("outcome", 0) == 0){
-      it = parse_outcome(it, obj);
-    }
-    ++it;
-  }
-  return obj;
-}
 
 // [[Rcpp::export]]
 int to_stan(const std::string& name) {
-  std::string filename(name + ".pso");
-  auto buffer = readfile(filename);
-  auto obj = parse(buffer);
-  obj.write_to_file(name + ".stan");
+  Data data(name + ".pso");
+  std::fstream output(name + ".stan", std::fstream::out | std::fstream::trunc);
+  output << data.to_stan_functions() << std::endl;
+  output << data.to_stan_data() << std::endl;
+  output << data.to_stan_transformed_data() << std::endl;
+  output << data.to_stan_parameters() << std::endl;
+  output << data.to_stan_transformed_parameters() << std::endl;
+  output << data.to_stan_model() << std::endl;
+  output << data.to_stan_generated_quantities() << std::endl;
+  output.close();
   return 0;
 }

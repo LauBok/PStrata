@@ -1,0 +1,5 @@
+gaussian            real        normal_lpdf         1   sigma   positive
+binomial            binary      bernoulli_lpmf      0
+Gamma               positive    Gamma_lpdf          1   alpha   positive
+poisson             count       poisson_lpmf        0
+inverse.gaussian    real        inv_gaussian_lpdf   1   lambda  real

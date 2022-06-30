@@ -1,0 +1,18 @@
+SZDG 0 0 0 0
+SZDG 0 1 0 0
+SZDG 1 0 0 1
+SZDG 1 1 1 2
+SZDG 2 0 0 3
+SZDG 2 1 3 3
+
+Y binomial logit
+
+random S 1
+random Y 2
+
+prior intercept flat 0 
+prior coefficient normal 2 0 1
+prior sigma inv_gamma 2 1 1
+prior alpha inv_gamma 2 1 1
+prior lambda inv_gamma 2 1 1
+prior theta normal 2 0 1

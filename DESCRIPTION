@@ -1,14 +1,15 @@
 Package: PStrata
 Type: Package
-Title: Causal Effect Under Principal Stratification
+Title: What the Package Does in One 'Title Case' Line
 Version: 0.0.1
-Date: 2022-03-16
+Date: 2021-07-06
 Author: Bo Liu
 Maintainer: Bo Liu <bl226@duke.edu>
 Description: One paragraph description of what the package
       does as one or more full sentences.
-Collate: parse_formula.R array.R strata.R prior.R model.R 
-         PSobject.R RcppExports.R PStrata.R
+Collate: prior.R parse_formula.R get_stan_data.R write_txt.R
+         PSObject.R PSSample.R RcppExports.R PStrata.R
 License: GPL (>= 2)
-Imports: Rcpp (>= 1.0.6), patchwork, ggplot2, tidyverse, rstan
+Imports: Rcpp (>= 1.0.6), patchwork, ggplot2, tidyverse, rstan, lme4
 LinkingTo: Rcpp
+RoxygenNote: 7.1.2

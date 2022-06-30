@@ -2,6 +2,6 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 to_stan <- function(name) {
-    .Call(`_PStrata_to_stan`, name)
+    .Call('_PStrata_to_stan', PACKAGE = 'PStrata', name)
 }
 

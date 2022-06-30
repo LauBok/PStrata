@@ -1,0 +1,18 @@
+gaussian            identity    normal_lpdf         identity_func       1   sigma   positive
+gaussian            log         normal_lpdf         exp                 1   sigma   positive
+gaussian            inverse     normal_lpdf         inv_func            1   sigma   positive
+binomial            logit       bernoulli_lpmf      inv_logit           0
+binomial            probit      bernoulli_lpmf      inv_Phi             0
+binomial            cauchit     bernoulli_lpmf      inv_cauchit_func    0
+binomial            log         bernoulli_lpmf      exp                 0
+binomial            cloglog     bernoulli_lpmf      inv_cloglog         0
+Gamma               inverse     Gamma_lpdf          inv_func            1   alpha   positive
+Gamma               identity    Gamma_lpdf          identity_func       1   alpha   positive
+Gamma               log         Gamma_lpdf          exp                 1   alpha   positive
+poisson             log         poisson_lpmf        exp                 0
+poisson             identity    poisson_lpmf        identity_func       0
+poisson             sqrt        poisson_lpmf        square_func         0
+inverse.gaussian    1/mu^2      inv_gaussian_lpdf   inv_square_func     1   lambda  real
+inverse.gaussian    inverse     inv_gaussian_lpdf   inv_func            1   lambda  real
+inverse.gaussian    identity    inv_gaussian_lpdf   identity_func       1   lambda  real
+inverse.gaussian    log         inv_gaussian_lpdf   exp                 1   lambda  real
