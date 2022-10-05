@@ -55,13 +55,12 @@ result <- PStrata(
   Y.formula = Y ~ 1,
   Y.family = gaussian(),
   data = data,
-  monotonicity = "none",
-  ER = c('00', '11'),
-  trunc = FALSE,
+  strata = c(0, 1, 2, 3),
+  ER = c(0, 3),
   chains = 1, warmup = 200, iter = 500
 )
 
-
+result
 plot(result)
 
 

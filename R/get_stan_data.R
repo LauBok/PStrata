@@ -10,7 +10,6 @@ get.stan.data <- function(S.formula, Y.formula, data){
       D_bin <- 2 * D_bin + dplyr::pull(data, prse_fml_S$response[i])
     }
   }
-  
 
   df <- list(
     N = nrow(data), 

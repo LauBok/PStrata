@@ -40,7 +40,6 @@ public:
       if (ctrl == "SZDG") {
         unsigned int s, z, d, g;
         input >> s >> z >> d >> g;
-        std::cout << s << ' ' << z << ' ' << d << ' ' << g << std::endl;
         SZDG_table[std::make_pair(z, d)].insert(std::make_pair(s, g));
         S_max = std::max(S_max, s);
         Z_max = std::max(Z_max, z);
@@ -381,6 +380,7 @@ public:
     std::string S_str = std::to_string(S_max + 1);
     std::string G_str = std::to_string(G_max + 1);
     std::string str = "generated quantities {\n";
+    str += "    vector[" + S_str + "] strata_prob;\n";
     str += "    vector[" + G_str + "] mean_effect;\n";
     str += "    {\n";
     str += "        matrix[N, " + G_str + "] expected_mean = XG * beta_G'";
@@ -389,7 +389,7 @@ public:
     }
     str += ";\n";
     str += "        matrix[N, " + S_str + "] log_prob;\n";
-    str += "        vector[" + S_str + "] denom;\n";
+    // str += "        vector[" + S_str + "] denom;\n";
     str += "        vector[" + G_str + "] numer;\n";
     str += "        log_prob[:, 1] = rep_vector(0, N);\n";
     str += "        log_prob[:, 2:" + S_str + "] = XS * beta_S'";
@@ -400,10 +400,10 @@ public:
     str += "        for (n in 1:N) {\n";
     str += "            log_prob[n] -= log_sum_exp(log_prob[n]);\n";
     str += "        }\n";
-    str += "        for (s in 1:" + S_str + ") denom[s] = mean(exp(log_prob[:, s]));\n";
+    str += "        for (s in 1:" + S_str + ") strata_prob[s] = mean(exp(log_prob[:, s]));\n";
     str += "        for (g in 1:" + G_str + ") {\n";
     str += "            numer[g] = mean(expected_mean[:, g] .* exp(log_prob[:, S[g]]));\n";
-    str += "            mean_effect[g] = numer[g] / denom[S[g]];\n";
+    str += "            mean_effect[g] = numer[g] / strata_prob[S[g]];\n";
     str += "        }\n";
     str += "    }\n";
     str += "}\n";

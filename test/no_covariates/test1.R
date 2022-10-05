@@ -44,9 +44,8 @@ PSobject <- PSObject(
   Y.formula = Y ~ 1,
   Y.family = gaussian(),
   data = data,
-  monotonicity = "strong",
-  ER = c('00'),
-  trunc = FALSE,
+  strata = c(0, 1),
+  ER = c(0)
 )
 
 result <- PStrata(
@@ -54,10 +53,9 @@ result <- PStrata(
   Y.formula = Y ~ 1,
   Y.family = gaussian(),
   data = data,
-  monotonicity = "strong",
-  ER = c('00'),
-  trunc = FALSE,
-  chains = 1, warmup = 200, iter = 500
+  strata = c(0, 1),
+  ER = c(0),
+  chains = 2, warmup = 200, iter = 500
 )
 
 result

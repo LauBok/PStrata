@@ -2,6 +2,18 @@
 #' 
 #' Define prior functions used in \code{PStrata}.
 #' 
+#' @export prior_flat
+#' @export prior_normal
+#' @export prior_t
+#' @export prior_cauchy
+#' @export prior_lasso
+#' @export prior_logistic
+#' @export prior_chisq
+#' @export prior_inv_chisq
+#' @export prior_exponential
+#' @export prior_gamma
+#' @export prior_inv_gamma
+#' @export prior_weibull
 #' @param ... parameters for the prior distribution
 #' @return A list, including the following items.
 #' \describe{

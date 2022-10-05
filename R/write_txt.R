@@ -61,6 +61,8 @@ write.txt <- function(S.formula, Y.formula, Y.family, strata, ER,
   S_id <- 0
   G_id <- 0
   
+  SZDG <- matrix(nrow = 0, ncol = 4)
+  
   for(stratum in strata){
     S_bin <- tostr.strata(stratum, P)
     S_bin0 <- substr(S_bin, start=1, stop=P)
@@ -69,11 +71,13 @@ write.txt <- function(S.formula, Y.formula, Y.family, strata, ER,
     D1 <- strtoi(S_bin1, base = 2)
     
     line0 <- paste0("SZDG ", S_id, " 0 ", D0, " ", G_id)
+    SZDG <- rbind(SZDG, c(S_id, 0, D0, G_id))
 
     if(!stratum %in% ER) 
       G_id <- G_id + 1
     
     line1 <- paste0("SZDG ", S_id, " 1 ", D1, " ", G_id)
+    SZDG <- rbind(SZDG, c(S_id, 1, D1, G_id))
     
     lines <- c(lines, line0, line1)
     
@@ -103,5 +107,10 @@ write.txt <- function(S.formula, Y.formula, Y.family, strata, ER,
     writeLines(lines, fileConn)
     close(fileConn)
   }
-  return (lines)
+  
+  meta_data <- list(
+    SZDG = SZDG,
+    strata = strata
+  )
+  return (list(pso_lines = lines, meta_data = meta_data))
 }
