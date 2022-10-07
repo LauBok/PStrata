@@ -44,7 +44,8 @@ PStrata <- function(
   return (res)
 }
 
-
+#' @method  summary PStrata
+#' @export summary.PStrata
 summary.PStrata <- function(pstrata) {
   samples <- pstrata$post_samples
   strata_prob_samples <- rstan::extract(samples)$`strata_prob`
@@ -99,6 +100,8 @@ summary.PStrata <- function(pstrata) {
                treatment_effect = treatment_effect_summary))
 }
 
+#' @method  plot PStrata
+#' @export plot.PStrata
 plot.PStrata <- function(pstrata, 
                          type = c("strata_prob", "mean_effect", "treatment_effect")) {
   samples <- pstrata$post_samples
@@ -109,7 +112,7 @@ plot.PStrata <- function(pstrata,
                                           everything(), names_to = 'Stratum',
                                           values_to = 'Probability')
   mean_effect_samples <- rstan::extract(samples)$`mean_effect`
-  group_names <- rep(NA, nrow(mean_effect_summary))
+  group_names <- rep(NA, ncol(mean_effect_samples))
   for (i in 1:nrow(meta_data$SZDG)){
     cur_g = meta_data$SZDG[i, 4] + 1
     cur_s = meta_data$SZDG[i, 1] + 1
@@ -156,8 +159,45 @@ plot.PStrata <- function(pstrata,
   return (Gplot)
 }
 
-
-
+#' @export contrast
+contrast <- function(pstrata, compare = "all") {
+  samples <- pstrata$post_samples
+  strata_prob_samples <- rstan::extract(samples)$`strata_prob`
+  mean_effect_samples <- rstan::extract(samples)$`mean_effect`
+  treatment_effect_samples <- 0 * strata_prob_samples
+  meta_data <- pstrata$PSobject$meta_data
+  for (j in 1:ncol(treatment_effect_samples)) {
+    g1 <- meta_data$SZDG[2 * j, 4] + 1
+    g0 <- meta_data$SZDG[2 * j - 1, 4] + 1
+    treatment_effect_samples[, j] <- 
+      mean_effect_samples[, g1] - mean_effect_samples[, g0]
+  }
+  if (any(compare == "all")) {
+    compare <- meta_data$strata
+  }
+  strata_idx <- sapply(compare, function(x) which(x == meta_data$strata))
+  contrast_effect_samples <- matrix(nrow = nrow(strata_prob_samples),
+                                    ncol = length(strata_idx) * (length(strata_idx) - 1) / 2)
+  cur_col_idx <- 1
+  all_names <- c()
+  for (i in 1:(length(strata_idx) - 1)) {
+    for (j in (i + 1) : length(strata_idx)){
+      all_names <- c(all_names,
+                     paste0("Contrast: ", meta_data$strata[j], " over ", meta_data$strata[i], collapse = ' ')
+      )
+      contrast_effect_samples[, cur_col_idx] <- treatment_effect_samples[, strata_idx[j]] - treatment_effect_samples[, strata_idx[i]]
+      cur_col_idx = cur_col_idx + 1
+    }
+  }
+  contrast_effect_summary <- t(apply(contrast_effect_samples, 2, function(x) c(
+    mean = mean(x), sd = sd(x),
+    `2.5%` = unname(quantile(x, 0.025)), `25%` = unname(quantile(x, 0.25)),
+    `median` = unname(quantile(x, 0.5)),
+    `75%` = unname(quantile(x, 0.75)), `97.5%` = unname(quantile(x, 0.975))
+  )))
+  rownames(contrast_effect_summary) <- all_names
+  return (contrast_effect_summary)
+}
 
 
 

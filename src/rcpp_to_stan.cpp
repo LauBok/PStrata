@@ -383,11 +383,12 @@ public:
     str += "    vector[" + S_str + "] strata_prob;\n";
     str += "    vector[" + G_str + "] mean_effect;\n";
     str += "    {\n";
-    str += "        matrix[N, " + G_str + "] expected_mean = XG * beta_G'";
+    str += "        matrix[N, " + G_str + "] expected_mean = " + func_link + 
+      "(XG * beta_G'";
     for (int i = 0; i < Y_re; ++i) {
       str += " + XG_RE_" + std::to_string(i + 1) + " * beta_G_RE_" + std::to_string(i + 1) + "'";
     }
-    str += ";\n";
+    str += ");\n";
     str += "        matrix[N, " + S_str + "] log_prob;\n";
     // str += "        vector[" + S_str + "] denom;\n";
     str += "        vector[" + G_str + "] numer;\n";
