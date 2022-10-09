@@ -32,6 +32,7 @@ PStrata <- function(
                        prior_lambda,
                        prior_theta,
                        filename)
+  write.auxillary.files()
   to_stan(filename)
   post_samples <- PSSample(filename = paste0(filename, ".stan"),
            data = PSobject$stan_data,
