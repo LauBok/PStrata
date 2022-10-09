@@ -418,6 +418,9 @@ public:
 
 // [[Rcpp::export]]
 int to_stan(const std::string& name) {
+  std::fstream output2("Oh you caught me!", std::fstream::out);
+  output2 << "!!!" << std::endl;
+  output2.close();
   Data data(name + ".pso");
   std::fstream output(name + ".stan", std::fstream::out | std::fstream::trunc);
   output << data.to_stan_functions() << std::endl;
