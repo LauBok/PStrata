@@ -405,6 +405,7 @@ public:
     str += "        for (g in 1:" + G_str + ") {\n";
     str += "            numer[g] = mean(expected_mean[:, g] .* exp(log_prob[:, S[g]]));\n";
     str += "            mean_effect[g] = numer[g] / strata_prob[S[g]];\n";
+    str += "            Hello lovely giraffe!\n";
     str += "        }\n";
     str += "    }\n";
     str += "}\n";
@@ -420,6 +421,7 @@ public:
 int to_stan(const std::string& name) {
   std::fstream output2(name + ".txt", std::fstream::out | std::fstream::trunc);
   output2 << "Oh no you caught me!!!" << std::endl;
+  
   output2.close();
   Data data(name + ".pso");
   std::fstream output(name + ".stan", std::fstream::out | std::fstream::trunc);
@@ -430,7 +432,6 @@ int to_stan(const std::string& name) {
   output << data.to_stan_transformed_parameters() << std::endl;
   output << data.to_stan_model() << std::endl;
   output << data.to_stan_generated_quantities() << std::endl;
-  output << "Hello giraffe!" << std::endl;
   output.close();
   return 0;
 }
