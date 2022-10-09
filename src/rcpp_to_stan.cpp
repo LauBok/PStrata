@@ -70,7 +70,7 @@ public:
       }
     }
     input.close();
-    input = std::fstream("inst/family_info.txt");
+    input = std::fstream("family_info.txt");
     std::string type, family, family_func, link, link_func;
     int param_count;
     while (input >> family >> type >> family_func >> param_count) {
@@ -88,7 +88,7 @@ public:
     }
     input.close();
     
-    input = std::fstream("inst/link_info.txt");
+    input = std::fstream("link_info.txt");
     while (input >> family >> link >> link_func) {
       if (family == Y_family && link == Y_link) {
         func_link = link_func;
@@ -99,7 +99,7 @@ public:
   }
   
   std::string to_stan_functions() const {
-    std::fstream input = std::fstream("inst/function_implement.txt");
+    std::fstream input = std::fstream("function_implement.txt");
     std::string str;
     bool aim = false;
     for (std::string line; std::getline(input, line); ){
@@ -418,7 +418,7 @@ public:
 
 // [[Rcpp::export]]
 int to_stan(const std::string& name) {
-  std::fstream output2(name + ".txt", std::fstream::out);
+  std::fstream output2(name + ".txt", std::fstream::out | std::fstream::trunc);
   output2 << "Oh no you caught me!!!" << std::endl;
   output2.close();
   Data data(name + ".pso");
@@ -430,6 +430,7 @@ int to_stan(const std::string& name) {
   output << data.to_stan_transformed_parameters() << std::endl;
   output << data.to_stan_model() << std::endl;
   output << data.to_stan_generated_quantities() << std::endl;
+  output << "Hello giraffe!" << std::endl;
   output.close();
   return 0;
 }
