@@ -70,7 +70,7 @@ public:
       }
     }
     input.close();
-    input = std::fstream("files_do_not_modify/family_info.txt");
+    input = std::fstream("inst/family_info.txt");
     std::string type, family, family_func, link, link_func;
     int param_count;
     while (input >> family >> type >> family_func >> param_count) {
@@ -88,7 +88,7 @@ public:
     }
     input.close();
     
-    input = std::fstream("files_do_not_modify/link_info.txt");
+    input = std::fstream("inst/link_info.txt");
     while (input >> family >> link >> link_func) {
       if (family == Y_family && link == Y_link) {
         func_link = link_func;
@@ -99,7 +99,7 @@ public:
   }
   
   std::string to_stan_functions() const {
-    std::fstream input = std::fstream("files_do_not_modify/function_implement.txt");
+    std::fstream input = std::fstream("inst/function_implement.txt");
     std::string str;
     bool aim = false;
     for (std::string line; std::getline(input, line); ){
