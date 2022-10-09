@@ -70,7 +70,7 @@ public:
       }
     }
     input.close();
-    input = std::fstream("family_info.txt");
+    input = std::fstream("auto_generated_files/family_info.txt");
     std::string type, family, family_func, link, link_func;
     int param_count;
     while (input >> family >> type >> family_func >> param_count) {
@@ -88,7 +88,7 @@ public:
     }
     input.close();
     
-    input = std::fstream("link_info.txt");
+    input = std::fstream("auto_generated_files/link_info.txt");
     while (input >> family >> link >> link_func) {
       if (family == Y_family && link == Y_link) {
         func_link = link_func;
@@ -99,7 +99,7 @@ public:
   }
   
   std::string to_stan_functions() const {
-    std::fstream input = std::fstream("function_implement.txt");
+    std::fstream input = std::fstream("auto_generated_files/function_implement.txt");
     std::string str;
     bool aim = false;
     for (std::string line; std::getline(input, line); ){
@@ -405,7 +405,6 @@ public:
     str += "        for (g in 1:" + G_str + ") {\n";
     str += "            numer[g] = mean(expected_mean[:, g] .* exp(log_prob[:, S[g]]));\n";
     str += "            mean_effect[g] = numer[g] / strata_prob[S[g]];\n";
-    str += "            Hello lovely giraffe!\n";
     str += "        }\n";
     str += "    }\n";
     str += "}\n";
@@ -419,10 +418,6 @@ public:
 
 // [[Rcpp::export]]
 int to_stan(const std::string& name) {
-  std::fstream output2(name + ".txt", std::fstream::out | std::fstream::trunc);
-  output2 << "Oh no you caught me!!!" << std::endl;
-  
-  output2.close();
   Data data(name + ".pso");
   std::fstream output(name + ".stan", std::fstream::out | std::fstream::trunc);
   output << data.to_stan_functions() << std::endl;
