@@ -161,7 +161,7 @@ plot.PStrata <- function(pstrata,
 }
 
 #' @export contrast
-contrast <- function(pstrata, compare = "all") {
+contrast <- function(pstrata) {
   samples <- pstrata$post_samples
   strata_prob_samples <- rstan::extract(samples)$`strata_prob`
   mean_effect_samples <- rstan::extract(samples)$`mean_effect`
@@ -173,9 +173,7 @@ contrast <- function(pstrata, compare = "all") {
     treatment_effect_samples[, j] <- 
       mean_effect_samples[, g1] - mean_effect_samples[, g0]
   }
-  if (any(compare == "all")) {
-    compare <- meta_data$strata
-  }
+  compare <- meta_data$strata
   strata_idx <- sapply(compare, function(x) which(x == meta_data$strata))
   contrast_effect_samples <- matrix(nrow = nrow(strata_prob_samples),
                                     ncol = length(strata_idx) * (length(strata_idx) - 1) / 2)
