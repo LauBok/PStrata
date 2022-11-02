@@ -17,6 +17,7 @@ PSObject(
   prior_alpha = prior_inv_gamma(),
   prior_lambda = prior_inv_gamma(),
   prior_theta = prior_normal(),
+  survival.time.points = 50,
   filename = NULL
 )
 }

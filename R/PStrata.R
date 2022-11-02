@@ -21,6 +21,7 @@ PStrata <- function(
     prior_alpha = prior_inv_gamma(),
     prior_lambda = prior_inv_gamma(),
     prior_theta = prior_normal(),
+    survival.time.points = 50,
     filename = "unnamed",
     ...
 ) {
@@ -31,6 +32,7 @@ PStrata <- function(
                        prior_alpha,
                        prior_lambda,
                        prior_theta,
+                       survival.time.points,
                        filename)
   write.auxillary.files()
   to_stan(filename)
@@ -41,7 +43,10 @@ PStrata <- function(
     PSobject = PSobject,
     post_samples = post_samples
   )
-  class(res) <- "PStrata"
+  if (Y.family$family == "survival_Cox" || Y.family$family == "survival_AFT")
+    class(res) <- "PStrata_survival"
+  else
+    class(res) <- "PStrata"
   return (res)
 }
 
@@ -199,4 +204,133 @@ contrast <- function(pstrata) {
 }
 
 
+#' @method  summary PStrata_survival
+#' @export summary.PStrata_survival
+summary.PStrata_survival <- function(pstrata) {
+  samples <- pstrata$post_samples
+  strata_prob_samples <- rstan::extract(samples)$`strata_prob`
+  mean_surv_prob_samples <- rstan::extract(samples)$`mean_surv_prob`
+  treatment_effect_samples <- array(0, dim = c(dim(strata_prob_samples), dim(mean_surv_prob_samples)[3]))
+  strata_prob_summary <- t(apply(strata_prob_samples, 2, function(x) c(
+    mean = mean(x), sd = sd(x),
+    `2.5%` = unname(quantile(x, 0.025)), `25%` = unname(quantile(x, 0.25)),
+    `median` = unname(quantile(x, 0.5)),
+    `75%` = unname(quantile(x, 0.75)), `97.5%` = unname(quantile(x, 0.975))
+  )))
+  mean_surv_prob <- apply(mean_surv_prob_samples, c(2,3), mean)
+  lwr_surv_prob <- apply(mean_surv_prob_samples, c(2,3), quantile, 0.025)
+  upr_surv_prob <- apply(mean_surv_prob_samples, c(2,3), quantile, 0.975)
+  colnames(mean_surv_prob) <- round(psresult$PSobject$stan_data$time, 3)
+  colnames(lwr_surv_prob) <- round(psresult$PSobject$stan_data$time, 3)
+  colnames(upr_surv_prob) <- round(psresult$PSobject$stan_data$time, 3)
+  meta_data <- pstrata$PSobject$meta_data
+  rownames(strata_prob_summary) <- paste("S = ", meta_data$strata, sep = '')
+  group_names <- rep(NA, nrow(mean_surv_prob))
+  for (i in 1:nrow(meta_data$SZDG)){
+    cur_g = meta_data$SZDG[i, 4] + 1
+    cur_s = meta_data$SZDG[i, 1] + 1
+    cur_z = meta_data$SZDG[i, 2]
+    if (!is.na(group_names[cur_g])) {
+      group_names[cur_g] <- 
+        paste0("S = ", meta_data$strata[cur_s], ", Z = *")
+    }
+    else {
+      group_names[cur_g] <- 
+        paste0("S = ", meta_data$strata[cur_s], ", Z = ", cur_z)
+    }
+  }
+  rownames(mean_surv_prob) <- group_names
+  rownames(lwr_surv_prob) <- group_names
+  rownames(upr_surv_prob) <- group_names
+  
+  for (j in 1:dim(treatment_effect_samples)[2]) {
+    g1 <- meta_data$SZDG[2 * j, 4] + 1
+    g0 <- meta_data$SZDG[2 * j - 1, 4] + 1
+    treatment_effect_samples[, j, ] <- 
+      mean_surv_prob_samples[, g1, ] - mean_surv_prob_samples[, g0, ]
+  }
+  mean_treatment_effect <- apply(treatment_effect_samples, c(2,3), mean)
+  lwr_treatment_effect <- apply(treatment_effect_samples, c(2,3), quantile, 0.025)
+  upr_treatment_effect <- apply(treatment_effect_samples, c(2,3), quantile, 0.975)
+  rownames(mean_treatment_effect) <- paste("S = ", meta_data$strata, sep = '')
+  rownames(upr_treatment_effect) <- paste("S = ", meta_data$strata, sep = '')
+  rownames(lwr_treatment_effect) <- paste("S = ", meta_data$strata, sep = '')
+  colnames(mean_treatment_effect) <- round(psresult$PSobject$stan_data$time, 3)
+  colnames(upr_treatment_effect) <- round(psresult$PSobject$stan_data$time, 3)
+  colnames(lwr_treatment_effect) <- round(psresult$PSobject$stan_data$time, 3)
+  
+  return (list(strata_prob = strata_prob_summary,
+               survival_prob = list(
+                 mean = mean_surv_prob,
+                 lwr = lwr_surv_prob,
+                 upr = upr_surv_prob
+               ),
+               treatment_effect = list(
+                 mean = mean_treatment_effect,
+                 lwr = lwr_treatment_effect,
+                 upr = upr_treatment_effect
+               )
+          )
+    )
+}
 
+#' @method  plot PStrata_survival
+#' @export plot.PStrata_survival
+plot.PStrata_survival <- function(pstrata, 
+                         type = c("strata_prob", "surv_prob", "treatment_effect")) {
+  samples <- pstrata$post_samples
+  meta_data <- pstrata$PSobject$meta_data
+  strata_prob_samples <- rstan::extract(samples)$`strata_prob`
+  colnames(strata_prob_samples) <- meta_data$strata
+  strata_prob_plot <- tidyr::pivot_longer(as.data.frame(strata_prob_samples), 
+                                          everything(), names_to = 'Stratum',
+                                          values_to = 'Probability')
+  summary_res <- summary.PStrata_survival(pstrata)
+  break_rows <- function(mat, label) {
+    .names <- rownames(mat)
+    lapply(.names, function(name) {
+      data.frame(value = mat[name, ], time = pstrata$PSobject$stan_data$time, name = name, label = label)
+    }) %>% {do.call(bind_rows, .)}
+  }
+  df_surv_prob <- bind_rows(
+    break_rows(summary_res$survival_prob$mean, "mean"),
+    break_rows(summary_res$survival_prob$upr, "upr"),
+    break_rows(summary_res$survival_prob$lwr, "lwr")
+  )
+  
+  df_treatment_effect <- bind_rows(
+    break_rows(summary_res$treatment_effect$mean, "mean"),
+    break_rows(summary_res$treatment_effect$upr, "upr"),
+    break_rows(summary_res$treatment_effect$lwr, "lwr")
+  )
+  
+  Gplot <- NULL
+  if (type == "strata_prob" || type == 1) {
+    Gplot <- ggplot2::ggplot(strata_prob_plot, ggplot2::aes(Probability)) +
+      ggplot2::geom_density(ggplot2::aes(fill = Stratum), alpha = 0.4)
+  }
+  else if (type == "surv_prob" || type == 2) {
+    Gplot <- ggplot2::ggplot(df_surv_prob %>% filter(label == "mean"), 
+                             ggplot2::aes(time, value, color = name)) +
+      ggplot2::geom_line() +
+      ggplot2::geom_ribbon(aes(
+        ymax = df_surv_prob %>% filter(label == "upr") %>% pull(value),
+        ymin = df_surv_prob %>% filter(label == "lwr") %>% pull(value),
+        fill = name
+      ), alpha = 0.4) +
+      ylab("Survial Probility") + xlab("Time") + labs(color = "Group", fill = "Group")
+  }
+  else if (type == "treatment_effect" || type == 3) {
+    Gplot <- ggplot2::ggplot(df_treatment_effect %>% filter(label == "mean"), 
+                             ggplot2::aes(time, value, color = name)) +
+      ggplot2::geom_line() +
+      ggplot2::geom_ribbon(aes(
+        ymax = df_treatment_effect %>% filter(label == "upr") %>% pull(value),
+        ymin = df_treatment_effect %>% filter(label == "lwr") %>% pull(value),
+        fill = name
+      ), alpha = 0.4) +
+      ylab("Survial Probility") + xlab("Time") + labs(color = "Group", fill = "Group")
+  }
+  
+  return (Gplot)
+}

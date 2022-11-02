@@ -8,6 +8,7 @@
 #' @param strata a vector of integers, each integer referring to a stratum that is included in the model
 #' @param ER a vector of integers, indicating the strata on which the exclusion restriction assumption is assumed.
 #' @param prior_... the prior distribution for the corresponding parameters.
+#' @param survival.time.points integer, the number of points to evaluate.
 #' @return A text file, readable by \code{to_stan()}.
 #' 
 #' @seealso \code{PStrata}
@@ -18,6 +19,7 @@ write.txt <- function(S.formula, Y.formula, Y.family, strata, ER,
                       prior_alpha = prior_inv_gamma(),
                       prior_lambda = prior_inv_gamma(),
                       prior_theta = prior_normal(),
+                      survival.time.points = 50,
                       filename = NULL){
   
   count.res.var <- function(formula) {
@@ -88,6 +90,9 @@ write.txt <- function(S.formula, Y.formula, Y.family, strata, ER,
   
   family_line <- paste0("Y ", Y.family$family, " ", Y.family$link)
   lines <- c(lines, family_line, "")
+  
+  survtime_line <- paste0("T ", survival.time.points)
+  lines <- c(lines, survtime_line, "")
   
   random_line_S <- paste0("random S ", length(lme4::findbars(S.formula)))
   random_line_Y <- paste0("random Y ", length(lme4::findbars(Y.formula)))

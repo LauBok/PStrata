@@ -16,6 +16,7 @@ write.txt(
   prior_alpha = prior_inv_gamma(),
   prior_lambda = prior_inv_gamma(),
   prior_theta = prior_normal(),
+  survival.time.points = 50,
   filename = NULL
 )
 }
@@ -29,6 +30,8 @@ write.txt(
 \item{strata}{a vector of integers, each integer referring to a stratum that is included in the model}
 
 \item{ER}{a vector of integers, indicating the strata on which the exclusion restriction assumption is assumed.}
+
+\item{survival.time.points}{integer, the number of points to evaluate.}
 
 \item{prior_...}{the prior distribution for the corresponding parameters.}
 }

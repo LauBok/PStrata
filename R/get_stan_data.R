@@ -21,6 +21,10 @@ get.stan.data <- function(S.formula, Y.formula, data){
     XS = prse_fml_S$model_matrix,
     XG = prse_fml_Y$model_matrix
   )
+  # censoring
+  if (length(prse_fml_Y$response) == 2) {
+    df$delta = dplyr::pull(data, prse_fml_Y$response[2])
+  }
   
   S_re_list <- prse_fml_S$random_matrix_list
   if (!is.null(S_re_list)) {

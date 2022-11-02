@@ -10,7 +10,8 @@ write.auxillary.files <- function() {
     "binomial            binary      bernoulli_lpmf      0",
     "Gamma               positive    Gamma_lpdf          1   alpha   positive",
     "poisson             count       poisson_lpmf        0",
-    "inverse.gaussian    real        inv_gaussian_lpdf   1   lambda  real"
+    "inverse.gaussian    real        inv_gaussian_lpdf   1   lambda  real",
+    "survival_Cox        survival    survival_Cox_lpdf   1   theta   real"
   )
   writeLines(lines, fileConn, sep = "\n")
   close(fileConn)
@@ -35,7 +36,8 @@ write.auxillary.files <- function() {
     "inverse.gaussian    1/mu^2      inv_gaussian_lpdf   inv_square_func     1   lambda  real",
     "inverse.gaussian    inverse     inv_gaussian_lpdf   inv_func            1   lambda  real",
     "inverse.gaussian    identity    inv_gaussian_lpdf   identity_func       1   lambda  real",
-    "inverse.gaussian    log         inv_gaussian_lpdf   exp                 1   lambda  real"
+    "inverse.gaussian    log         inv_gaussian_lpdf   exp                 1   lambda  real",
+    "survival_Cox        identity    survival_Cox_lpdf   identity_func       1   theta   real"
   )
   writeLines(lines, fileConn, sep = "\n")
   
@@ -59,7 +61,8 @@ write.auxillary.files <- function() {
     "inverse.gaussian    1/mu^2      inv_square_func",
     "inverse.gaussian    inverse     inv_func",
     "inverse.gaussian    identity    identity_func",
-    "inverse.gaussian    log         exp"
+    "inverse.gaussian    log         exp",
+    "survival_Cox        identity    identity_func"
   )
   writeLines(lines, fileConn, sep = "\n")
   
@@ -108,7 +111,14 @@ write.auxillary.files <- function() {
     "    real kernel = -1.5 * log(x) - lambda * pow(x - mu, 2) / (2 * x * pow(mu, 2));",
     "    return constant + kernel;",
     "}",
-    "<<<>>>"
+    "<<<>>>",
+    "",
+    "<<< survival_Cox_lpdf >>>",
+    "real survival_Cox_lpdf(real x, real mu, real theta, int delta) {",
+    "    real term1 = theta + mu + (exp(theta) - 1) * log(x);",
+    "    real term2 = exp(mu) * pow(x, exp(theta));",
+    "    return delta * term1 - term2;",
+    "}"
   )
   writeLines(lines, fileConn, sep = "\n")
 }

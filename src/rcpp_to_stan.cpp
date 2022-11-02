@@ -138,6 +138,12 @@ public:
     else if (Y_type == "binary") Y_str = "int<lower=0, upper=1> Y[N];";
     else if (Y_type == "count") Y_str = "int<lower=0> Y[N];";
     str += "    " + Y_str + "\n";
+    if (Y_type == "survival") {
+      str += "    real<lower=0> Y[N];\n";
+      str += "    int<lower=0, upper=1> delta[N];\n";
+      str += "    int<lower=0> T;\n";
+      str += "    real<lower=0> time[T];\n";
+    }
     str += "    matrix[N, PS] XS;\n";
     str += "    matrix[N, PG] XG;\n";
     for (int i = 0; i < S_re; ++i) {
@@ -358,6 +364,8 @@ public:
         for (auto &p : parameters) {
           str_param += ", " + p.first + "[" + std::to_string(g + 1) + "]";
         }
+        if (Y_type == "survival")
+          str_param += ", delta[n]";
         str += "                log_l[" + std::to_string(++i) + "] = log_prob[" +
           std::to_string(s + 1) + "] + " +
           func_family + "(Y[n] | " + func_link + "(" +
@@ -381,20 +389,44 @@ public:
     std::string G_str = std::to_string(G_max + 1);
     std::string str = "generated quantities {\n";
     str += "    vector[" + S_str + "] strata_prob;\n";
-    str += "    vector[" + G_str + "] mean_effect;\n";
+    if (Y_type == "survival"){
+      str += "    matrix[" + G_str + ", T] mean_surv_prob;\n";
+    }
+    else {
+      str += "    vector[" + G_str + "] mean_effect;\n";
+    }
     str += "    {\n";
     str += "        matrix[N, " + S_str + "] log_prob;\n";
     // str += "        vector[" + S_str + "] denom;\n";
-    str += "        vector[" + G_str + "] numer;\n";
-    str += "        matrix[N, " + G_str + "] expected_mean;\n";
-    str += "        for (i in 1:N)\n";
-    str += "            for (j in 1:" + G_str + ")\n";
-    str += "                expected_mean[i, j] = " + func_link + 
-      "(XG[i] * beta_G[j]'";
-    for (int i = 0; i < Y_re; ++i) {
-      str += " + XG_RE_" + std::to_string(i + 1) + "[i] * beta_G_RE_" + std::to_string(i + 1) + "[j]'";
+    if (Y_type == "survival"){
+      str += "        matrix[" + G_str + ", T] numer;\n";
+      str += "        matrix[N, T] expected_surv_prob[" + G_str + "];\n";
+      str += "        for (i in 1:N)\n";
+      str += "            for (j in 1:" + G_str + ")\n";
+      str += "                for (t in 1:T) {\n";
+      str += "                    real mu = " + func_link + 
+        "(XG[i] * beta_G[j]'";
+      for (int i = 0; i < Y_re; ++i) {
+        str += " + XG_RE_" + std::to_string(i + 1) + "[i] * beta_G_RE_" + std::to_string(i + 1) + "[j]'";
+      }
+      str += ");\n";
+      if (Y_family == "survival_Cox"){
+        str += "                    expected_surv_prob[j][i, t] = exp(-exp(mu) * pow(time[t], exp(theta[j])));\n";
+      }
+      str += "                }\n";
     }
-    str += ");\n";
+    else {
+      str += "        vector[" + G_str + "] numer;\n";
+      str += "        matrix[N, " + G_str + "] expected_mean;\n";
+      str += "        for (i in 1:N)\n";
+      str += "            for (j in 1:" + G_str + ")\n";
+      str += "                expected_mean[i, j] = " + func_link + 
+        "(XG[i] * beta_G[j]'";
+      for (int i = 0; i < Y_re; ++i) {
+        str += " + XG_RE_" + std::to_string(i + 1) + "[i] * beta_G_RE_" + std::to_string(i + 1) + "[j]'";
+      }
+      str += ");\n";
+    }
     str += "        log_prob[:, 1] = rep_vector(0, N);\n";
     str += "        log_prob[:, 2:" + S_str + "] = XS * beta_S'";
     for (int i = 0; i < S_re; ++i) {
@@ -405,10 +437,20 @@ public:
     str += "            log_prob[n] -= log_sum_exp(log_prob[n]);\n";
     str += "        }\n";
     str += "        for (s in 1:" + S_str + ") strata_prob[s] = mean(exp(log_prob[:, s]));\n";
-    str += "        for (g in 1:" + G_str + ") {\n";
-    str += "            numer[g] = mean(expected_mean[:, g] .* exp(log_prob[:, S[g]]));\n";
-    str += "            mean_effect[g] = numer[g] / strata_prob[S[g]];\n";
-    str += "        }\n";
+    if (Y_type == "survival") {
+      str += "        for (g in 1:" + G_str + ") {\n";
+      str += "            for (t in 1:T) {\n";
+      str += "                numer[g, t] = mean(expected_surv_prob[g][:, t] .* exp(log_prob[:, S[g]]));\n";
+      str += "                mean_surv_prob[g, t] = numer[g, t] / strata_prob[S[g]];\n";
+      str += "            }\n";
+      str += "        }\n";
+    }
+    else {
+      str += "        for (g in 1:" + G_str + ") {\n";
+      str += "            numer[g] = mean(expected_mean[:, g] .* exp(log_prob[:, S[g]]));\n";
+      str += "            mean_effect[g] = numer[g] / strata_prob[S[g]];\n";
+      str += "        }\n";
+    }
     str += "    }\n";
     str += "}\n";
     return (str);

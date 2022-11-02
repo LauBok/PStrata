@@ -48,15 +48,18 @@ data$D <- ifelse(data$Z == 1,
                  ifelse(data$S %in% c(2, 4), 1, 0), 
                  ifelse(data$S %in% c(3, 4), 1, 0))
 
-data$Y <- ifelse(data$S == 1,
+data$T <- ifelse(data$S == 1,
                  sample_survival(n, 1, 0.3), 
                  sample_survival(n, 1, 2 - 0.6 * data$Z))
+data$C <- runif(n, 0.5, 2)
 
 p1 <- plot_survival(1, 0.3)
 p2 <- plot_survival(1, 1.4)
 p3 <- plot_survival(1, 2)
 
-data$C <- rbinom(n, 1, 0.2)
+data$delta <- data$T < data$C
+data$Y <- pmin(data$T, data$C)
+mean(data$delta)
 
 ggplot(as.data.frame(data)) + geom_density(aes(x = Y, color = as.factor(Z))) +
   facet_wrap(~as.factor(S))
@@ -65,34 +68,28 @@ write.csv(data, "test/survival/data_no_covariate.csv", row.names = F)
 
 PSobject <- PSObject(
   S.formula = Z + D ~ 1,
-  Y.formula = Y + C ~ 1,
+  Y.formula = Y + delta ~ 1,
   Y.family = survival(),
   data = as.data.frame(data),
-  monotonicity = "strong",
-  ER = c('00'),
+  strata = c(0, 1),
+  ER = c(0),
   prior_intercept = prior_normal(0, 1),
-  prior_coefficient = prior_normal(0, 1),
-  trunc = F
+  prior_coefficient = prior_normal(0, 1)
 )
 
-PSsample <- PSSampling(PSobject, "wrong", chains = 1, warmup = 300, iter = 1000, refresh = 10)
-PSsampleEx <- PSSampleEx(PSobject, PSsample)
-PSsummary <- PSSummary.survival(PSsampleEx)
-p <- plot(PSsummary, time = seq(0.01, 1, length.out = 20))
-(p1 / p2 / p3) | p
-
-result <- PStrata(
+psresult <- PStrata(
   S.formula = Z + D ~ 1,
-  Y.formula = Y + C ~ 1,
+  Y.formula = Y + delta ~ 1,
   Y.family = survival(),
-  data = data,
-  monotonicity = "strong",
-  ER = c('00'),
+  data = as.data.frame(data),
+  strata = c(0, 1),
+  ER = c(0),
   prior_intercept = prior_normal(0, 1),
   prior_coefficient = prior_normal(0, 1),
-  trunc = FALSE,
-  chains = 1, warmup = 1000, iter = 3000
+  survival.time.points = 30,
+  chains = 1, warmup = 200, iter = 500
 )
 
-result
-saveRDS(result, file = "test/survival/no_covariate_result.RDS")
+exp(-exp(2) * psresult$PSobject$stan_data$time ^ exp(1))
+rstan::extract(psresult$post_samples, pars = "mean_surv_prob")
+

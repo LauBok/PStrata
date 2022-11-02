@@ -19,13 +19,17 @@ PSObject <- function(
   prior_alpha = prior_inv_gamma(),
   prior_lambda = prior_inv_gamma(),
   prior_theta = prior_normal(),
+  survival.time.points = 50,
   filename = NULL
 ) {
   pso <- write.txt(S.formula, Y.formula, Y.family, strata, ER,
             prior_intercept, prior_coefficient,
             prior_sigma, prior_alpha, prior_lambda, prior_theta,
+            survival.time.points,
             filename)
   stan_data <- get.stan.data(S.formula, Y.formula, data)
+  stan_data$T <- survival.time.points
+  stan_data$time <- seq(0, quantile(stan_data$Y, 0.9), length.out = survival.time.points)
   return (list(pso_file = pso$pso_lines, 
                meta_data = pso$meta_data, 
                stan_data = stan_data))
