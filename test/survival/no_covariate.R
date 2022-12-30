@@ -12,7 +12,7 @@ set.seed(0)
 data <- read.csv("test/data.csv")
 data <- list()
 #n <- nrow(data)
-n <- 10000
+n <- 5000
 get_one <- function(log_p1, log_p2, log_p3, log_p4) {
   m <- max(log_p1, log_p2, log_p3, log_p4, na.rm = T)
   f <- function(x) if (is.na(x)) 0 else exp(x - m)
@@ -57,12 +57,16 @@ p1 <- plot_survival(1, 0.3)
 p2 <- plot_survival(1, 1.4)
 p3 <- plot_survival(1, 2)
 
-data$delta <- data$T < data$C
+data$delta <- ifelse(data$T < data$C, 0, 1)
 data$Y <- pmin(data$T, data$C)
+data$S <- ifelse(data$S == 1, "never-taker", "complier")
 mean(data$delta)
 
 ggplot(as.data.frame(data)) + geom_density(aes(x = Y, color = as.factor(Z))) +
   facet_wrap(~as.factor(S))
+sim_data_Cox <- as.data.frame(data)
+save(sim_data_Cox, file = "data/sim_data_Cox.rda")
+
 
 write.csv(data, "test/survival/data_no_covariate.csv", row.names = F)
 

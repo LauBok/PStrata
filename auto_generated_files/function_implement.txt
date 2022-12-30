@@ -47,4 +47,4 @@ real survival_Cox_lpdf(real x, real mu, real theta, int delta) {
     real term1 = theta + mu + (exp(theta) - 1) * log(x);
     real term2 = exp(mu) * pow(x, exp(theta));
     return delta * term1 - term2;
-} 
+}

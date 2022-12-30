@@ -2,19 +2,8 @@
 #' 
 #' Define prior functions used in \code{PStrata}.
 #' 
-#' @export prior_flat
-#' @export prior_normal
-#' @export prior_t
-#' @export prior_cauchy
-#' @export prior_lasso
-#' @export prior_logistic
-#' @export prior_chisq
-#' @export prior_inv_chisq
-#' @export prior_exponential
-#' @export prior_gamma
-#' @export prior_inv_gamma
-#' @export prior_weibull
-#' @param ... parameters for the prior distribution
+#' @param mu,sigma,df,alpha,beta parameters for the prior distribution
+#' 
 #' @return A list, including the following items.
 #' \describe{
 #' \item{name}{name of the distribution}
@@ -23,7 +12,12 @@
 #' \item{call}{a function call object of the prior distribution on the parameters}
 #' }
 #' 
+#' @name prior
+#' @rdname prior
+NULL
 
+#' @rdname prior
+#' @export
 prior_flat <- function() {
   return (
     list(
@@ -35,6 +29,8 @@ prior_flat <- function() {
   )
 }
 
+#' @rdname prior
+#' @export
 prior_normal <- function(mu = 0, sigma = 1){
   return (
     list(
@@ -46,6 +42,8 @@ prior_normal <- function(mu = 0, sigma = 1){
   )
 }
 
+#' @rdname prior
+#' @export
 prior_t <- function(mu = 0, sigma = 1, df = 1){
   return (
     list(
@@ -57,6 +55,8 @@ prior_t <- function(mu = 0, sigma = 1, df = 1){
   )
 }
 
+#' @rdname prior
+#' @export
 prior_cauchy <- function(mu = 0, sigma = 1){
   return (
     list(
@@ -68,6 +68,8 @@ prior_cauchy <- function(mu = 0, sigma = 1){
   )
 }
 
+#' @rdname prior
+#' @export
 prior_lasso <- function(mu = 0, sigma = 1) {
   return (
     list(
@@ -79,6 +81,8 @@ prior_lasso <- function(mu = 0, sigma = 1) {
   )
 }
 
+#' @rdname prior
+#' @export
 prior_logistic <- function(mu = 0, sigma = 1) {
   return (
     list(
@@ -90,6 +94,8 @@ prior_logistic <- function(mu = 0, sigma = 1) {
   )
 }
 
+#' @rdname prior
+#' @export
 prior_chisq <- function(df = 1) {
   return (
     list(
@@ -101,6 +107,8 @@ prior_chisq <- function(df = 1) {
   )
 }
 
+#' @rdname prior
+#' @export
 prior_inv_chisq <- function(df = 1) {
   return (
     list(
@@ -112,6 +120,8 @@ prior_inv_chisq <- function(df = 1) {
   )
 }
 
+#' @rdname prior
+#' @export
 prior_exponential <- function(beta = 1) {
   return (
     list(
@@ -123,6 +133,8 @@ prior_exponential <- function(beta = 1) {
   )
 }
 
+#' @rdname prior
+#' @export
 prior_gamma <- function(alpha = 1, beta = 1) {
   return (
     list(
@@ -134,6 +146,8 @@ prior_gamma <- function(alpha = 1, beta = 1) {
   )
 }
 
+#' @rdname prior
+#' @export
 prior_inv_gamma <- function(alpha = 1, beta = 1) {
   return (
     list(
@@ -145,6 +159,8 @@ prior_inv_gamma <- function(alpha = 1, beta = 1) {
   )
 }
 
+#' @rdname prior
+#' @export
 prior_weibull <- function(alpha = 1, sigma = 1) {
   return (
     list(

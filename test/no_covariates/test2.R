@@ -12,7 +12,7 @@
 
 set.seed(0)
 
-data <- read.csv("test/data.csv")
+data <- data.frame(matrix(nrow = 1000, ncol = 0))
 n <- nrow(data)
 
 get_one <- function(log_p1, log_p2, log_p3, log_p4) {
@@ -31,16 +31,27 @@ data$S <- sapply(
     log(0.5)
   )
 )
+data$S <- ifelse(
+  data$S == 1,
+  "never taker",
+  ifelse(
+    data$S == 2,
+    "complier",
+    "always taker"
+  )
+)
 data$Z <- rbinom(n, 1, 0.5)
 data$D <- ifelse(data$Z == 1, 
-                     ifelse(data$S %in% c(2, 4), 1, 0), 
-                     ifelse(data$S %in% c(3, 4), 1, 0))
-data$Y <- ifelse(data$S == 1,
+                     ifelse(data$S %in% c("complier", "always taker"), 1, 0), 
+                     ifelse(data$S %in% c("defier", "always taker"), 1, 0))
+data$Y <- ifelse(data$S == "never taker",
                      rnorm(n, 3, 1), 
-                 ifelse(data$S == 2,
+                 ifelse(data$S == "complier",
                      rnorm(n, -1 - data$Z, 0.5),
                      rnorm(n, 1, 2))
 )
+sim_data_normal <- data
+save(sim_data_normal, file = "data/sim_data_normal.rda")
 
 write.csv(data, "test/no_covariates/data2.csv", row.names = F)
 

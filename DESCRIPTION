@@ -7,9 +7,11 @@ Author: Bo Liu
 Maintainer: Bo Liu <bl226@duke.edu>
 Description: One paragraph description of what the package
       does as one or more full sentences.
-Collate: survival.R prior.R parse_formula.R get_stan_data.R write_txt.R
-         PSObject.R PSSample.R write_auxillary_files.R PStrata.R RcppExports.R 
+Collate: PStrata-package.R PSFormula.R PStrataInfo.R survival.R prior.R make_standata.R make_psofile.R
+         PSObject.R make_stancode.R PSSample.R write_auxillary_files.R PStrata.R PSOutcome.R RcppExports.R 
+         sim_data_normal.R sim_data_Cox.R
 License: GPL (>= 2)
 Imports: Rcpp (>= 1.0.6), patchwork, ggplot2, tidyverse, rstan, lme4
 LinkingTo: Rcpp
+LazyData: true
 RoxygenNote: 7.1.2

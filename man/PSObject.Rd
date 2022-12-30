@@ -2,43 +2,118 @@
 % Please edit documentation in R/PSObject.R
 \name{PSObject}
 \alias{PSObject}
-\title{Principal strata analysis for data with post-randomization intervention}
+\title{Create a Principal Stratification Object}
 \usage{
-PSObject(
-  S.formula,
-  Y.formula,
-  Y.family,
-  data,
-  strata,
-  ER,
+\code{
+PSObject <- function(
+  S.formula, Y.formula, Y.family, 
+  data = NULL,
+  strata = NULL, ER = NULL,
   prior_intercept = prior_flat(),
   prior_coefficient = prior_normal(),
   prior_sigma = prior_inv_gamma(),
   prior_alpha = prior_inv_gamma(),
   prior_lambda = prior_inv_gamma(),
   prior_theta = prior_normal(),
-  survival.time.points = 50,
-  filename = NULL
+  survival.time.points = 50
 )
 }
+}
 \arguments{
-\item{S.formula}{a formula for the principal strata model, in the form of \code{Z + D1 + D2 ~ X1 + X2}, where \code{Z} is the treatment assignment and \code{D1} and \code{D2} are the post-randomization variables.}
+\item{S.formula, Y.formula}{an object of class "\code{\link{PSFormula}}" (or an
+object of class "\code{\link{formula}}" that can be coerced to
+that class with \code{data} provided) specifying the model for principal
+stratum and outcome respectively. See \code{\link{PSFormula}} for details.}
 
-\item{Y.formula}{a formula for the outcome model, in the form of \code{Y ~ X1 + X2}, where \code{Y} is the outcome variable}
+\item{Y.family}{an object of class "\code{\link{family}}": specifying the parametric
+family of the model for the response and the link function. See the documentation
+for \code{\link{glm}} for details on how such model fitting takes place.
+Supported families and corresponding link functions are presented in 'Details' below.}
 
-\item{Y.family}{a family object, indicating the family of the model as used in \code{lm()}.}
+\item{data}{(optional) a data frame object. This is required when either 
+\code{S.formula} or \code{Y.formula} is a \code{formula} object, to coerce
+it into a \code{PSFormula} object. When this happens, the data frame should 
+contain all of the variables with names given in \code{S.formula} or \code{Y.formula}.}
 
-\item{data}{a data frame object, the data used to do inference on.}
+\item{strata, ER}{arguments to define the principal strata. See \code{\link{PStrataInfo}} for details.
 
-\item{strata}{a vector of integers, each integer referring to a stratum that is included in the model}
+Alternatively, one can pass an object of class \code{PStrataInfo} to \code{strata},
+and \code{ER} will be ignored.}
 
-\item{ER}{a vector of integers, indicating the strata on which the exclusion restriction assumption is assumed.}
+\item{prior_intercept, prior_coefficient, prior_sigma, prior_alpha, prior_lambda, prior_theta}{prior distribution for corresponding parameters in the model.}
 
-\item{prior_...}{the prior distribution for the corresponding parameters.}
+\item{survival.time.points}{a vector of time points at which the estimated survival probability is evaluated 
+(only used when the type of outcome is survival), or an integer specifying the number of time points to be
+chosen. By default, the time points are chosen with equal distance from 0 to the 90\% quantile of the observed
+outcome.}
 }
 \value{
-A list, containing the pso file and data used for stan..
+A list, containing important information describing the principal stratification model.
 }
 \description{
-description
+Create an object containing essential information to create the Stan file and 
+data for Stan to draw posterior samples. Such information includes the specified
+model for principal stratum and outcome, the type of outcome, assumptions,
+and prior specification, etc.
+}
+\details{
+The supported \code{family} objects include two types: native families for ordinary outcome and 
+\code{survival} family for survival outcome.
+
+For ordinary outcome, the below families and links are supported. See \code{\link{family}} for more details.
+\tabular{ll}{
+ \bold{family} \tab \bold{link} \cr
+ \code{binomial} \tab \code{logit}, \code{probit}, \code{cauchit}, \code{log}, \code{cloglog} \cr
+ \code{gaussian} \tab \code{identity}, \code{log}, \code{inverse} \cr
+ \code{Gamma} \tab \code{inverse}, \code{identity}, \code{log} \cr
+ \code{poisson} \tab \code{log}, \code{identity}, \code{log} \cr
+ \code{inverse.gamma} \tab \code{1/mu^2}, \code{inverse}, \code{identity}, \code{log} 
+}
+The \code{quasi} family is not supported for the current version of the package.
+
+For survival outcome, the \code{family} object is created by 
+\code{survival(method = "Cox", link = "identity")}, where \code{method} can be
+either \code{"Cox"} for Weibull-Cox model or \code{"AFT"} for accelerated 
+failure time model. See \code{\link{survival}} for more details. For the current
+version, only \code{"identity"} is used as the link function.
+
+The \code{gaussian} family and the \code{survival} family with \code{method = "AFT"}
+introduce an additional parameter \code{sigma} for the standard deviation, whose 
+prior distribution is specified by \code{prior_sigma}. Similarly, \code{prior_alpha}
+specifies the prior distribution of \code{alpha} for \code{Gamma} family, 
+\code{prior_lambda} specifies the prior distribution of \code{theta} for \code{inverse.gaussian} family, 
+and \code{prior_theta}
+specifies the prior distribution of \code{theta} for \code{survival} family with \code{method = "Cox"}.
+
+The models for principal stratum \code{S.formula} and response \code{Y.formula}
+also involve a linear combination of terms, where the prior distribution of
+the intercept and coefficients are specified by \code{prior_intercept} and 
+\code{prior_coefficient} respectively.
+}
+\examples{
+df <- data.frame(
+  Z = rbinom(10, 1, 0.5),
+  D = rbinom(10, 1, 0.5),
+  Y = rnorm(10),
+  X = 1:10
+)
+
+PSObject(
+  S.formula = Z + D ~ X,
+  Y.formula = Y ~ X,
+  Y.family = gaussian("identity"),
+  data = df,
+  strata = c(n = "00*", c = "01", a = "11*")
+)
+
+#------------------------------
+
+PSObject(
+  S.formula = Z + D ~ 1,
+  Y.formula = Y ~ 1,
+  Y.family = gaussian("identity"),
+  data = sim_data_normal,
+  strata = c(n = "00*", c = "01", a = "11*")
+)
+
 }

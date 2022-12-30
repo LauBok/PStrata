@@ -2,7 +2,7 @@
 % Please edit documentation in R/survival.R
 \name{survival}
 \alias{survival}
-\title{The family function for survival}
+\title{The family function for survival data}
 \usage{
 survival(method = "Cox", link = "identity")
 }
@@ -12,8 +12,8 @@ survival(method = "Cox", link = "identity")
 \item{link}{a link function, currently only identity is implemented and used}
 }
 \value{
-A text file, readable by \code{to_stan()}.
+A \code{family} object
 }
 \description{
-description
+Construct a family object for survival data
 }

@@ -2,15 +2,16 @@
 % Please edit documentation in R/PStrata.R
 \name{PStrata}
 \alias{PStrata}
-\title{Principal strata analysis for data with post-randomization intervention}
+\title{Principal Stratification Analysis for Data with Post-Randomization Intervention}
 \usage{
 PStrata(
-  S.formula,
+  PSobject,
+  S.fomula,
   Y.formula,
   Y.family,
-  data,
-  strata,
-  ER,
+  data = NULL,
+  strata = NULL,
+  ER = NULL,
   prior_intercept = prior_flat(),
   prior_coefficient = prior_normal(),
   prior_sigma = prior_inv_gamma(),
@@ -18,28 +19,92 @@ PStrata(
   prior_lambda = prior_inv_gamma(),
   prior_theta = prior_normal(),
   survival.time.points = 50,
-  filename = "unnamed",
+  filename = NULL,
   ...
 )
 }
 \arguments{
-\item{S.formula}{a formula for the principal strata model, in the form of \code{Z + D1 + D2 ~ X1 + X2}, where \code{Z} is the treatment assignment and \code{D1} and \code{D2} are the post-randomization variables.}
+\item{PSobject}{an object of class \code{\link{PSObject}}. 
+If left blank, the object is constructed using the following arguments.
+See \code{\link{PSObject}} for details.}
 
-\item{Y.formula}{a formula for the outcome model, in the form of \code{Y ~ X1 + X2}, where \code{Y} is the outcome variable}
+\item{Y.formula}{an object of class "\code{\link{PSFormula}}" (or an
+object of class "\code{\link{formula}}" that can be coerced to
+that class with \code{data} provided) specifying the model for principal
+stratum and outcome respectively. See \code{\link{PSFormula}} for details.}
 
-\item{Y.family}{a family object, indicating the family of the model as used in \code{lm()}.}
+\item{Y.family}{an object of class "\code{\link{family}}": specifying the parametric
+family of the model for the response and the link function. See the documentation
+for \code{\link{glm}} for details on how such model fitting takes place.
+Supported families and corresponding link functions are presented in 'Details' below.}
 
-\item{data}{a data frame object, the data used to do inference on.}
+\item{data}{(optional) a data frame object. This is required when either 
+\code{S.formula} or \code{Y.formula} is a \code{formula} object, to coerce
+it into a \code{PSFormula} object. When this happens, the data frame should 
+contain all of the variables with names given in \code{S.formula} or \code{Y.formula}.}
 
-\item{strata}{a vector of integers, each integer referring to a stratum that is included in the model}
+\item{strata}{arguments to define the principal strata. See \code{\link{PStrataInfo}} for details.
 
-\item{ER}{a vector of integers, indicating the strata on which the exclusion restriction assumption is assumed.}
+Alternatively, one can pass an object of class \code{PStrataInfo} to \code{strata},
+and \code{ER} will be ignored.}
 
-\item{prior_...}{the prior distribution for the corresponding parameters.}
+\item{ER}{arguments to define the principal strata. See \code{\link{PStrataInfo}} for details.
+
+Alternatively, one can pass an object of class \code{PStrataInfo} to \code{strata},
+and \code{ER} will be ignored.}
+
+\item{prior_intercept}{prior distribution for corresponding parameters in the model.}
+
+\item{prior_coefficient}{prior distribution for corresponding parameters in the model.}
+
+\item{prior_sigma}{prior distribution for corresponding parameters in the model.}
+
+\item{prior_alpha}{prior distribution for corresponding parameters in the model.}
+
+\item{prior_lambda}{prior distribution for corresponding parameters in the model.}
+
+\item{prior_theta}{prior distribution for corresponding parameters in the model.}
+
+\item{survival.time.points}{a vector of time points at which the estimated survival probability is evaluated 
+(only used when the type of outcome is survival), or an integer specifying the number of time points to be
+chosen. By default, the time points are chosen with equal distance from 0 to the 90\% quantile of the observed
+outcome.}
+
+\item{filename}{(optional) string. If not \code{NULL}, the stan file will be saved via
+\code{\link{cat}} in a text file named after the string supplied.}
+
+\item{...}{additional parameters to be passed into \code{\link{PSSample}}.}
 }
 \value{
-A text file, readable by \code{to_stan()}.
+An object of class \code{PStrata} or \code{PStrata_survival}, 
+which is a list containing the \code{PSObject} and the posterior samples (of class \code{stanfit})
 }
 \description{
-description
+Perform pincipal stratification analysis when there are confounding variables
+after randomization
+}
+\examples{
+PSobj <- PSObject(
+  S.formula = Z + D ~ 1,
+  Y.formula = Y ~ 1,
+  Y.family = gaussian("identity"),
+  data = sim_data_normal,
+  strata = c(n = "00*", c = "01", a = "11*")
+)
+
+#----- Not Run ------
+# PStrata(PSobj, cores = 6, chains = 6, iter = 1000)
+
+# Another example for survival data
+PSobj <- PSObject(
+  S.formula = Z + D ~ 1,
+  Y.formula = Y + delta ~ 1,
+  Y.family = survival("Cox"),
+  data = sim_data_Cox,
+  strata = c(`never-taker` = "00*", complier = "01")
+)
+
+#----- Not Run ------
+# PStrata(PSobj, cores = 6, chains = 6, iter = 1000)
+
 }
