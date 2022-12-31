@@ -2,8 +2,10 @@
 
 S3method("[",PSOutcome)
 S3method(plot,PSOutcome)
+S3method(print,PSContrast)
 S3method(print,PSOutcome)
 S3method(summary,PSOutcome)
+export(PSContrast)
 export(PSFormula)
 export(PSObject)
 export(PSOutcome)
