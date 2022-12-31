@@ -17,3 +17,4 @@ inverse.gaussian    inverse     inv_gaussian_lpdf   inv_func            1   lamb
 inverse.gaussian    identity    inv_gaussian_lpdf   identity_func       1   lambda  real
 inverse.gaussian    log         inv_gaussian_lpdf   exp                 1   lambda  real
 survival_Cox        identity    survival_Cox_lpdf   identity_func       1   theta   real
+

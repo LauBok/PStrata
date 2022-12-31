@@ -10,7 +10,7 @@
 #' @return A string, which can be printed on screen using \code{\link{cat}}.
 #'
 #' @export
-make_stancode <- function(PSobject, filename = NULL) {
+make_stancode <- function(PSobject, filename = NULL, debug = F) {
   ## initialization ----------
   SZDG_max <- apply(PSobject$SZDG_table, 2, max)
   S_re <- length(PSobject$S.formula$random_eff_list)
@@ -36,7 +36,10 @@ make_stancode <- function(PSobject, filename = NULL) {
   }
   
   ### family info ----------
-  family_info_lines <- readLines("inst/family_info.txt")
+  if (debug) 
+    family_info_lines <- readLines("/inst/family_info.txt")
+  else
+    family_info_lines <- readLines(paste0(path.package("PStrata"), "/family_info.txt"))
   splitted_family_info_lines <- stringr::str_split(family_info_lines, " +")
   for (splitted_line in splitted_family_info_lines) {
     if (Y_family == splitted_line[1]) {
@@ -54,7 +57,10 @@ make_stancode <- function(PSobject, filename = NULL) {
   }
   
   ### link info ---------
-  link_info_lines <- readLines("inst/link_info.txt")
+  if (debug)
+    link_info_lines <- readLines("inst/link_info.txt")
+  else
+    link_info_lines <- readLines(paste0(path.package("PStrata"), "/link_info.txt"))
   splitted_link_info_lines <- stringr::str_split(link_info_lines, " +")
   for (splitted_line in splitted_link_info_lines) {
     if (Y_family == splitted_line[1] && Y_link == splitted_line[2]) {
@@ -63,7 +69,10 @@ make_stancode <- function(PSobject, filename = NULL) {
   }
   
   ## functions ----------
-  func_imp_lines <- readLines("inst/function_implement.txt")
+  if (debug)
+    func_imp_lines <- readLines("inst/function_implement.txt")
+  else
+    func_imp_lines <- readLines(paste0(path.package("PStrata"), "/function_implement.txt"))
   func_output_lines <- c()
   aim <- F
   for (line in func_imp_lines) {
