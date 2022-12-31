@@ -1,2 +1,3 @@
-^.*\.Rproj$
-^\.Rproj\.user$
+PStrata3.0.Rproj
+.gitignore
+.DS_Store

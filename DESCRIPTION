@@ -1,17 +1,19 @@
 Package: PStrata
 Type: Package
-Title: What the Package Does in One 'Title Case' Line
+Title: Principal Stratification Analysis with Post-randomization Intervention
 Version: 0.0.1
-Date: 2021-07-06
-Author: Bo Liu
+Date: 2022-12-31
+Authors@R:
+  c(
+    person(given = "Bo", family = "Liu", role = c("aut", "cre"), email = "bl226@duke.edu"),
+    person(given = "Fan", family = "Li", role = "ctb", email = "fl35@duke.edu")
+  )
 Maintainer: Bo Liu <bl226@duke.edu>
-Description: One paragraph description of what the package
-      does as one or more full sentences.
+Description: The package is designed for estimating causal effects in the presense of post-treatment confounding using principal stratification.
 Collate: PStrata-package.R PSFormula.R PStrataInfo.R survival.R prior.R make_standata.R 
-         PSObject.R make_stancode.R PSSample.R write_auxillary_files.R PStrata.R PSOutcome.R RcppExports.R 
+         PSObject.R make_stancode.R PSSample.R write_auxillary_files.R PStrata.R PSOutcome.R
          sim_data_normal.R sim_data_Cox.R PSContrast.R
 License: GPL (>= 2)
-Imports: Rcpp (>= 1.0.6), patchwork, ggplot2, tidyverse, rstan, lme4
-LinkingTo: Rcpp
+Imports: patchwork, ggplot2, rstan, lme4, abind, dplyr, purrr, stringr, stats, rlang
 LazyData: true
 RoxygenNote: 7.1.2

@@ -4,7 +4,7 @@
 \alias{PSFormula}
 \title{Set up a model formula for use in \pkg{PStrata}}
 \usage{
-\code{PSFormula(formula, data)}
+PSFormula(formula, data)
 }
 \arguments{
 \item{formula}{an object of class \code{formula} (or one that can be coerced to that class):
@@ -38,8 +38,7 @@ Users can also define (potentially non-linear) transforms of the covariates and 
 \details{
 Two models are required for the principal stratification analysis: the principal stratum model and the outcome model.
 
-\subsection{General formula structure}
-
+\subsection{General formula structure}{
 For the principal stratum model, the \code{formula} argument accepts formulas of the following syntax:
 
 \code{treatment + postrand ~ terms}
@@ -63,9 +62,9 @@ Then, the \code{response} variable should refer to \eqn{\min(T, C)}, the actual 
 and the indicator \code{observed} is 1 if \eqn{T < C} and 0 otherwise.
 
 The \code{terms} specified in the principal stratum model and the outcome model can be different.
+}
 
-\subsection{Multiple post-randomization confounding variables}
-
+\subsection{Multiple post-randomization confounding variables}{
 If multiple post-randomization confounding variables exist, one can specify all of them using 
 the following syntax:
 
@@ -76,9 +75,9 @@ The post-randomization confounding variables are provided in place of \code{post
 Note that the order of these post-randomization confounding variables will not
 affect the result of the estimation of the parameters, but it will be important
 in specifying other parameters, such as \code{strata} and \code{ER} (see \code{\link{PStrata}}).
+}
 
-\subsection{Non-linear transformation of the predictors}
-
+\subsection{Non-linear transformation of the predictors}{
 The syntax for the predictors follow the conventions as used in \code{link{formula}}.
 The part \code{terms} consists of a series of terms concatenated by \code{+}, 
 each term being the name of a variable, or the interaction of several variables separated by \code{:}.
@@ -98,9 +97,9 @@ Arithmetic expressions such as \code{a + log(b)} are also legal.
 However, arithmetic expressions may contain special symbols that are defined for other use, such as \code{+}, \code{*}, \code{^} and \code{-}.
 To avoid confusion, the function \code{\link{I}()} can be used to bracket portions where the operators should be interpreted in arithmetic sense.
 For example, in \code{x + I(y + z)}, the term \code{y + z} is interpreted as the sum of \code{y} and \code{z}.
+}
 
-\subsection{Group level random effect}
-
+\subsection{Group level random effect}{
 When effects assumed to vary across grouping variables are considered, one can 
 specify such effects by adding terms in the form of \code{gterms | group}, where
 \code{group} refers to the group indicator (usually a \code{factor}), and
@@ -114,6 +113,7 @@ For example, \code{x + y + (1 | g)} specifies a model with population predictors
 
 For more complex random effect structures, refer to \code{\link[lme4:lmer]{lme4::lmer}}.
 However, structures other than simple random intercepts and slopes may lead to unexpected behaviors.
+}
 }
 \examples{
 df <- data.frame(

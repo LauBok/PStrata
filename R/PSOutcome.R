@@ -68,25 +68,25 @@ PSOutcome <- function(PStrataObj) {
 }
 
 #' @exportS3Method 
-print.PSOutcome <- function(PSoutcome) {
-  if (!PSoutcome$is.survival) {
-    cat("Non-survival PSOutcome Object (", dim(PSoutcome$outcome_array)[1],
-        " strata, ", dim(PSoutcome$outcome_array)[2], 
-        " treatment arms, ", dim(PSoutcome$outcome_array)[3], " iterations)\n", sep = '')
+print.PSOutcome <- function(x, ...) {
+  if (!x$is.survival) {
+    cat("Non-survival PSOutcome Object (", dim(x$outcome_array)[1],
+        " strata, ", dim(x$outcome_array)[2], 
+        " treatment arms, ", dim(x$outcome_array)[3], " iterations)\n", sep = '')
   } else {
-    cat("Survival PSOutcome Object (", dim(PSoutcome$outcome_array)[1],
-        " strata, ", dim(PSoutcome$outcome_array)[2], 
-        " treatment arms, ", dim(PSoutcome$outcome_array)[4], " iterations)\n", sep = '')
-    cat("Evaluated at ", dim(PSoutcome$outcome_array)[3], " time points.\n", sep = '')
+    cat("Survival PSOutcome Object (", dim(x$outcome_array)[1],
+        " strata, ", dim(x$outcome_array)[2], 
+        " treatment arms, ", dim(x$outcome_array)[4], " iterations)\n", sep = '')
+    cat("Evaluated at ", dim(x$outcome_array)[3], " time points.\n", sep = '')
   }
 }
 
 #' @export
-summary.PSOutcome <- function(PSoutcome, type = c("array", "matrix", "data.frame")){
-  if (!PSoutcome$is.survival) {
-    summary_raw <- apply(PSoutcome$outcome_array, c(2,1), 
-                         function(x) c(mean(x), sd(x), quantile(x, 0.025), quantile(x,0.25),
-                                       median(x), quantile(x, 0.75), quantile(x, 0.975)))
+summary.PSOutcome <- function(object, type = c("array", "matrix", "data.frame"), ...){
+  if (!object$is.survival) {
+    summary_raw <- apply(object$outcome_array, c(2,1), 
+                         function(x) c(mean(x), stats::sd(x), stats::quantile(x, 0.025), stats::quantile(x,0.25),
+                                       stats::median(x), stats::quantile(x, 0.75), stats::quantile(x, 0.975)))
     summary_res_array <- aperm(summary_raw, c(3,2,1))
     summary_names <- c("mean", "sd", "2.5%", "25%", "median", "75%", "97.5%")
     S_names <- dimnames(summary_res_array)[[1]]
@@ -114,9 +114,9 @@ summary.PSOutcome <- function(PSoutcome, type = c("array", "matrix", "data.frame
       return (summary_res_df)
   }
   else {
-    summary_raw <- apply(PSoutcome$outcome_array, c(3,2,1), 
-                         function(x) c(mean(x), sd(x), quantile(x, 0.025), quantile(x,0.25),
-                                       median(x), quantile(x, 0.75), quantile(x, 0.975)))
+    summary_raw <- apply(object$outcome_array, c(3,2,1), 
+                         function(x) c(mean(x), stats::sd(x), stats::quantile(x, 0.025), stats::quantile(x,0.25),
+                                       stats::median(x), stats::quantile(x, 0.75), stats::quantile(x, 0.975)))
     summary_res_array <- aperm(summary_raw, c(4,3,2,1))
     summary_names <- c("mean", "sd", "2.5%", "25%", "median", "75%", "97.5%")
     S_names <- dimnames(summary_res_array)[[1]]
@@ -143,7 +143,7 @@ summary.PSOutcome <- function(PSoutcome, type = c("array", "matrix", "data.frame
     }
     else{
       summary_res_df <- cbind(S = unlist(SZT[[1]]), Z = unlist(SZT[[2]]), 
-                       T = PSoutcome$time_points[as.integer(unlist(SZT[[3]]))], summary_res_df)
+                       T = object$time_points[as.integer(unlist(SZT[[3]]))], summary_res_df)
     }
     
     if (match.arg(type, c("array", "matrix", "data.frame")) == "array")
@@ -174,29 +174,29 @@ summary.PSOutcome <- function(PSoutcome, type = c("array", "matrix", "data.frame
 }
 
 #' @export
-plot.PSOutcome <- function(PSoutcome, se = T) {
-  if (!PSoutcome$is.survival) {
-    plot_df <- summary(PSoutcome, "data.frame")
+plot.PSOutcome <- function(x, se = T, ...) {
+  if (!x$is.survival) {
+    plot_df <- summary(x, "data.frame")
     Gplot <- ggplot2::ggplot(plot_df) + ggplot2::geom_point(ggplot2::aes(x = mean, y = "")) + 
       ggplot2::facet_grid(Z~S, scale = "free")
     if (se)
-      Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(xmin = `2.5%`, xmax = `97.5%`, y = ""))
+      Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(xmin = rlang::.data[['2.5%']], xmax = rlang::.data[['97.5%']] , y = ""))
     return (Gplot)
   }
   else {
-    plot_df <- summary(PSoutcome, "data.frame")
+    plot_df <- summary(x, "data.frame")
     if (any(is.na(as.integer(plot_df$T)))) {
       Gplot <- ggplot2::ggplot(plot_df) + ggplot2::geom_point(ggplot2::aes(x = T, y = mean)) + 
         ggplot2::facet_grid(Z~S, scale = "free")
       if (se)
-        Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(ymin = `2.5%`, ymax = `97.5%`, x = T))
+        Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(ymin = rlang::.data[['2.5%']], ymax = rlang::.data[['97.5%']], x = T))
       Gplot <- Gplot + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1))
     }
     else{
       Gplot <- ggplot2::ggplot(plot_df) + ggplot2::geom_line(ggplot2::aes(x = T, y = mean)) + 
         ggplot2::facet_grid(Z~S, scale = "free")
       if (se)
-        Gplot <- Gplot + ggplot2::geom_ribbon(ggplot2::aes(ymin = `2.5%`, ymax = `97.5%`, x = T),
+        Gplot <- Gplot + ggplot2::geom_ribbon(ggplot2::aes(ymin = rlang::.data[['2.5%']], ymax = rlang::.data[['97.5%']], x = T),
                                               alpha = 0.3)
     }
     return (Gplot)

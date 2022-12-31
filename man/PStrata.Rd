@@ -6,7 +6,7 @@
 \usage{
 PStrata(
   PSobject,
-  S.fomula,
+  S.formula,
   Y.formula,
   Y.family,
   data = NULL,
@@ -27,6 +27,11 @@ PStrata(
 \item{PSobject}{an object of class \code{\link{PSObject}}. 
 If left blank, the object is constructed using the following arguments.
 See \code{\link{PSObject}} for details.}
+
+\item{S.formula}{an object of class "\code{\link{PSFormula}}" (or an
+object of class "\code{\link{formula}}" that can be coerced to
+that class with \code{data} provided) specifying the model for principal
+stratum and outcome respectively. See \code{\link{PSFormula}} for details.}
 
 \item{Y.formula}{an object of class "\code{\link{PSFormula}}" (or an
 object of class "\code{\link{formula}}" that can be coerced to
@@ -84,6 +89,7 @@ Perform pincipal stratification analysis when there are confounding variables
 after randomization
 }
 \examples{
+require(abind)
 PSobj <- PSObject(
   S.formula = Z + D ~ 1,
   Y.formula = Y ~ 1,

@@ -4,7 +4,7 @@
 \alias{make_standata}
 \title{Data for \pkg{PStrata} Models}
 \usage{
-\code{make_standata(PSobject)}
+make_standata(PSobject)
 }
 \arguments{
 \item{PSobject}{an object of class \code{PSObject}}

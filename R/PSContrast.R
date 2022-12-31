@@ -146,16 +146,16 @@ PSContrast <- function(outcome, S = NULL, Z = NULL, T = NULL,
 }
 
 #' @export 
-print.PSContrast <- function(PSoutcome) {
-  if (!PSoutcome$is.survival) {
-    cat("Non-survival PSContrast Object (", dim(PSoutcome$outcome_array)[1],
-        " strata, ", dim(PSoutcome$outcome_array)[2], 
-        " treatment arms, ", dim(PSoutcome$outcome_array)[3], " iterations)\n", sep = '')
+print.PSContrast <- function(x, ...) {
+  if (!x$is.survival) {
+    cat("Non-survival PSContrast Object (", dim(x$outcome_array)[1],
+        " strata, ", dim(x$outcome_array)[2], 
+        " treatment arms, ", dim(x$outcome_array)[3], " iterations)\n", sep = '')
   } else {
-    cat("Survival PSContrast Object (", dim(PSoutcome$outcome_array)[1],
-        " strata, ", dim(PSoutcome$outcome_array)[2], 
-        " treatment arms, ", dim(PSoutcome$outcome_array)[4], " iterations)\n", sep = '')
-    cat("Evaluated at ", dim(PSoutcome$outcome_array)[3], " time points.\n", sep = '')
+    cat("Survival PSContrast Object (", dim(x$outcome_array)[1],
+        " strata, ", dim(x$outcome_array)[2], 
+        " treatment arms, ", dim(x$outcome_array)[4], " iterations)\n", sep = '')
+    cat("Evaluated at ", dim(x$outcome_array)[3], " time points.\n", sep = '')
   }
 }
   

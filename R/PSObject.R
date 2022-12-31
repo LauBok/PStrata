@@ -5,21 +5,6 @@
 #' model for principal stratum and outcome, the type of outcome, assumptions,
 #' and prior specification, etc.
 #' 
-#' @usage 
-#' \code{
-#' PSObject <- function(
-#'   S.formula, Y.formula, Y.family, 
-#'   data = NULL,
-#'   strata = NULL, ER = NULL,
-#'   prior_intercept = prior_flat(),
-#'   prior_coefficient = prior_normal(),
-#'   prior_sigma = prior_inv_gamma(),
-#'   prior_alpha = prior_inv_gamma(),
-#'   prior_lambda = prior_inv_gamma(),
-#'   prior_theta = prior_normal(),
-#'   survival.time.points = 50
-#' )
-#' }
 #' 
 #' @param S.formula,Y.formula an object of class "\code{\link{PSFormula}}" (or an
 #' object of class "\code{\link{formula}}" that can be coerced to

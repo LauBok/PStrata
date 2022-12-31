@@ -9,19 +9,17 @@
 #' to be user-friendly - various ways are accommodated to create a \code{PStrataInfo}
 #' object, some possibly preferable over others under different settings.
 #' 
-#' @usage 
-#' \code{PStrataInfo(strata, ER = NULL)}
 #' 
 #' @examples
-#' \code{PStrataInfo(strata = c(n = "00*", c = "01", a = "11"))}
-#' \code{PStrataInfo(
+#' PStrataInfo(strata = c(n = "00*", c = "01", a = "11"))
+#' PStrataInfo(
 #'   strata = list(n = c(0, 0), c = c(0, 1), a = c(1, 1)), 
 #'   ER = c(TRUE, FALSE, FALSE)
-#' )}
-#' \code{PStrataInfo(
+#' )
+#' PStrataInfo(
 #'   strata = list(n = c(0, 0), c = c(0, 1), a = c(1, 1)), 
 #'   ER = c("n")
-#' )}
+#' )
 #' 
 #' @param strata a list or a vector defining all principal strata. Details of
 #' the syntax are given in 'Details' below.
@@ -46,8 +44,7 @@
 #' @details 
 #' There are mainly two ways to easily create a \code{PStrataInfo} object.
 #' 
-#' \subsection{By string}
-#' 
+#' \subsection{By string}{
 #' To define the principal strata by strings, the \code{strata} argument
 #' should receive a named vector, each component being the description of one strata
 #' with the name of that strata. The naming does not affect the actual inference,
@@ -85,9 +82,9 @@
 #' When names to the strata are not provided in \code{strata}, the strata can be referred to by their 
 #' canonical name, which is the string used to define the stratum with asterisks removed. For example, 
 #' the strata \code{"00|11*"} can be referred to with name "00|11".
+#' }
 #' 
-#' \subsection{By matrix}
-#' 
+#' \subsection{By matrix}{
 #' To define the principal strata by matrices, the \code{strata} argument
 #' should receive a named list, each component being a matrix. The number of rows matches the number
 #' of post-randomization variables, and the number of columns matches that of possible treatment arms.
@@ -96,8 +93,7 @@
 #' 
 #' When this approach is used, there is no shorthand to specify ER assumption. The \code{ER} argument is 
 #' required to do this.
-#' 
-#' 
+#' }
 #' 
 #' \bold{Warning:} When ER assumption is specified in both \code{strata} and \code{ER} argument, the shorthand
 #' notation for ER in \code{strata} is ignored, and a warning is given regardless of whether the specification

@@ -4,13 +4,15 @@
 \alias{make_stancode}
 \title{\bold{Stan} Code for \pkg{PStrata} Models}
 \usage{
-make_stancode(PSobject, filename = NULL)
+make_stancode(PSobject, filename = NULL, debug = F)
 }
 \arguments{
 \item{PSobject}{an object of class \code{PSobject}}
 
 \item{filename}{(optional) string. If not \code{NULL}, the stan file will be saved via
 \code{\link{cat}} in a text file named after the string supplied.}
+
+\item{debug}{only for testing in development mode. Will be removed in future release.}
 }
 \value{
 A string, which can be printed on screen using \code{\link{cat}}.

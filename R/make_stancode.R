@@ -6,6 +6,7 @@
 #' @param PSobject an object of class \code{PSobject}
 #' @param filename (optional) string. If not \code{NULL}, the stan file will be saved via
 #' \code{\link{cat}} in a text file named after the string supplied.
+#' @param debug only for testing in development mode. Will be removed in future release.
 #'
 #' @return A string, which can be printed on screen using \code{\link{cat}}.
 #'

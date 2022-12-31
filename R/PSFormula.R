@@ -5,8 +5,6 @@
 #' For survival outcome, a censoring indicator is also specified.
 #' Users can also define (potentially non-linear) transforms of the covariates and include random effects for clusters.
 #' 
-#' @usage 
-#' \code{PSFormula(formula, data)}
 #' 
 #' @param formula an object of class \code{formula} (or one that can be coerced to that class):
 #' a symbolic description of the model to be fitted. The details of model specification are given in 'Details'.
@@ -15,8 +13,7 @@
 #' @details 
 #' Two models are required for the principal stratification analysis: the principal stratum model and the outcome model.
 #' 
-#' \subsection{General formula structure}
-#' 
+#' \subsection{General formula structure}{
 #' For the principal stratum model, the \code{formula} argument accepts formulas of the following syntax:
 #' 
 #' \code{treatment + postrand ~ terms}
@@ -40,9 +37,9 @@
 #' and the indicator \code{observed} is 1 if \eqn{T < C} and 0 otherwise.
 #' 
 #' The \code{terms} specified in the principal stratum model and the outcome model can be different.
+#' }
 #' 
-#' \subsection{Multiple post-randomization confounding variables}
-#' 
+#' \subsection{Multiple post-randomization confounding variables}{
 #' If multiple post-randomization confounding variables exist, one can specify all of them using 
 #' the following syntax:
 #' 
@@ -53,9 +50,9 @@
 #' Note that the order of these post-randomization confounding variables will not
 #' affect the result of the estimation of the parameters, but it will be important
 #' in specifying other parameters, such as \code{strata} and \code{ER} (see \code{\link{PStrata}}).
+#' }
 #' 
-#' \subsection{Non-linear transformation of the predictors}
-#' 
+#' \subsection{Non-linear transformation of the predictors}{
 #' The syntax for the predictors follow the conventions as used in \code{link{formula}}.
 #' The part \code{terms} consists of a series of terms concatenated by \code{+}, 
 #' each term being the name of a variable, or the interaction of several variables separated by \code{:}.
@@ -75,9 +72,9 @@
 #' However, arithmetic expressions may contain special symbols that are defined for other use, such as \code{+}, \code{*}, \code{^} and \code{-}.
 #' To avoid confusion, the function \code{\link{I}()} can be used to bracket portions where the operators should be interpreted in arithmetic sense.
 #' For example, in \code{x + I(y + z)}, the term \code{y + z} is interpreted as the sum of \code{y} and \code{z}.
+#' }
 #' 
-#' \subsection{Group level random effect}
-#' 
+#' \subsection{Group level random effect}{
 #' When effects assumed to vary across grouping variables are considered, one can 
 #' specify such effects by adding terms in the form of \code{gterms | group}, where
 #' \code{group} refers to the group indicator (usually a \code{factor}), and
@@ -91,6 +88,7 @@
 #' 
 #' For more complex random effect structures, refer to \code{\link[lme4:lmer]{lme4::lmer}}.
 #' However, structures other than simple random intercepts and slopes may lead to unexpected behaviors.
+#' }
 #' 
 #' @returns \code{PSFormula} returns an object of class \code{PSFormula}, 
 #' which is a \code{list} containing for following components.
@@ -142,9 +140,9 @@ PSFormula <- function(formula, data) {
   
   LHS <- if(length(formula) == 3) formula[[2]] else NULL
   LHS_symbol <- symbols_AST(LHS)
-  terms <- terms.formula(non_random_formula)
+  terms <- stats::terms.formula(non_random_formula)
   has_intercept <- as.logical(attr(terms, "intercept"))
-  model_matrix <- model.matrix(non_random_formula, data)
+  model_matrix <- stats::model.matrix(non_random_formula, data)
   
   random_matrix_list <- NULL
   if (random_effect) {

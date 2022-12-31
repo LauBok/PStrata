@@ -32,6 +32,278 @@ PSSample(
   eigen_lib = NULL
 )
 }
+\arguments{
+\item{file}{
+    The path to the Stan program to use. 
+    \code{file} should be a character string file name or a connection that 
+    \R supports containing the text of a model specification in the Stan 
+    modeling language. 
+    
+    A model may also be specified directly as a character string using the 
+    \code{model_code} argument, but we recommend always putting Stan programs 
+    in separate files with a \code{.stan} extension.
+    
+    The \code{stan} function can also use the Stan program from an existing
+    \code{stanfit} object via the \code{fit} argument. When \code{fit} is 
+    specified, the \code{file} argument is ignored.
+    }
+
+\item{model_name}{
+    A string to use as the name of the model; defaults 
+    to \code{"anon_model"}. However, the model name will be derived from 
+    \code{file} or \code{model_code} (if \code{model_code} is the name
+    of a character string object) if \code{model_name} is not specified.
+    This is not a particularly important argument, although since it 
+    affects the name used in printed messages, developers of other packages 
+    that use \pkg{rstan} to fit models may want to use informative names.
+  }
+
+\item{model_code}{
+    A character string either containing the model definition or the name of 
+    a character string object in the workspace. This argument is used only 
+    if arguments \code{file} and \code{fit} are not specified.
+  }
+
+\item{fit}{
+    An instance of S4 class \code{stanfit} derived from a previous fit;
+    defaults to \code{NA}. If \code{fit} is not \code{NA}, the compiled model 
+    associated with the fitted result is re-used; thus the time that would 
+    otherwise be spent recompiling the C++ code for the model can be saved.
+  }
+
+\item{data}{A named \code{list} or \code{environment} providing the data for 
+    the model, or a character vector for all the names of objects to use as data. 
+    See the \strong{Passing data to Stan} section below.}
+
+\item{pars}{A character vector specifying parameters of interest to be saved. 
+    The default is to save all parameters from the model. 
+    If \code{include = TRUE}, only samples for parameters named in \code{pars} 
+    are stored in the fitted results. Conversely, if \code{include = FALSE}, 
+    samples for all parameters \emph{except} those named in \code{pars} are 
+    stored in the fitted results.}
+
+\item{chains}{A positive integer specifying the number of Markov chains. 
+    The default is 4.}
+
+\item{iter}{A positive integer specifying the number of iterations for each 
+    chain (including warmup). The default is 2000.}
+
+\item{warmup}{A positive integer specifying the number of warmup (aka burnin)
+    iterations per chain. If step-size adaptation is on (which it is by default), 
+    this also controls the number of iterations for which adaptation is run (and
+    hence these warmup samples should not be used for inference). The number of 
+    warmup iterations should be smaller than \code{iter} and the default is
+    \code{iter/2}.}
+
+\item{thin}{A positive integer specifying the period for saving samples. 
+    The default is 1, which is usually the recommended value. Unless your
+    posterior distribution takes up too much memory we do \emph{not} recommend 
+    thinning as it throws away information. The tradition of thinning when 
+    running MCMC stems primarily from the use of samplers that require 
+    a large number of iterations to achieve the desired effective sample size. 
+    Because of the efficiency (effective samples per second) of 
+    Hamiltonian Monte Carlo, rarely should this be necessary when using Stan.}
+
+\item{init}{
+    Specification of initial values for all or some parameters.
+    Can be the digit \code{0}, the strings \code{"0"} or \code{"random"}, 
+    a function that returns a named list, or a list of named lists:
+    \describe{
+    \item{\code{init="random"} (default):}{Let Stan generate random initial values
+      for all parameters. The seed of the random number generator used by Stan 
+      can be specified via the \code{seed} argument. If the seed for Stan is 
+      fixed, the same initial values are used. The default is to randomly 
+      generate initial values between \code{-2} and \code{2} \emph{on the 
+      unconstrained support}. The optional additional parameter \code{init_r} can 
+      be set to some value other than \code{2} to change the range of the randomly 
+      generated inits.}
+    \item{\code{init="0", init=0}:}{Initialize all parameters to zero on 
+      the unconstrained support.}  
+    \item{inits via list:}{Set inital values by providing a list 
+      equal in length to the number of chains. The elements of this list should 
+      themselves be named lists, where each of these named lists has the name 
+      of a parameter and is used to specify the initial values for that parameter 
+      for the corresponding chain.}
+    \item{inits via function:}{Set initial values by providing a function that 
+      returns a list for specifying the initial values of parameters for a chain. 
+      The function can take an optional parameter \code{chain_id} through which the 
+      \code{chain_id} (if specified) or the integers from 1 to \code{chains} will be 
+      supplied to the function for generating initial values.
+      See the \strong{Examples} section below for examples of defining 
+      such functions and using a list of lists for specifying initial values.}
+    }
+    When specifying initial values via a \code{list} or \code{function}, any
+    parameters for which values are not specified will receive initial values
+    generated as described in the \code{init="random"} description above.
+  }
+
+\item{seed}{The seed for random number generation. The default is generated 
+    from 1 to the maximum integer supported by \R on the machine. Even if 
+    multiple chains are used, only one seed is needed, with other chains having 
+    seeds derived from that of the first chain to avoid dependent samples.
+    When a seed is specified by a number, \code{as.integer} will be applied to it. 
+    If \code{as.integer} produces \code{NA}, the seed is generated randomly. 
+    The seed can also be specified as a character string of digits, such as
+    \code{"12345"}, which is converted to integer.
+    
+    Using \R's \code{set.seed} function to set the seed for Stan will not work.
+    }
+
+\item{algorithm}{
+    One of the sampling algorithms that are implemented in Stan. 
+    The default and preferred algorithm is \code{"NUTS"}, which is 
+    the No-U-Turn sampler variant of Hamiltonian Monte Carlo
+    (Hoffman and Gelman 2011, Betancourt 2017). Currently the other options 
+    are \code{"HMC"} (Hamiltonian Monte Carlo), and \code{"Fixed_param"}. 
+    When \code{"Fixed_param"} is used no MCMC sampling is performed 
+    (e.g., for simulating with in the generated quantities block).
+  }
+
+\item{control}{A named \code{list} of parameters to control the sampler's
+    behavior. It defaults to \code{NULL} so all the default values are used. 
+    First, the following are adaptation parameters for sampling algorithms.
+    These are parameters used in Stan with similar names here.
+    \itemize{
+      \item \code{adapt_engaged} (\code{logical})
+      \item \code{adapt_gamma} (\code{double}, positive, defaults to 0.05)
+      \item \code{adapt_delta} (\code{double}, between 0 and 1, defaults to 0.8)
+      \item \code{adapt_kappa} (\code{double}, positive, defaults to 0.75)
+      \item \code{adapt_t0} (\code{double}, positive, defaults to 10)
+      \item \code{adapt_init_buffer} (\code{integer}, positive, defaults to 75)
+      \item \code{adapt_term_buffer} (\code{integer}, positive, defaults to 50)
+      \item \code{adapt_window} (\code{integer}, positive, defaults to 25)
+    }
+
+    In addition, algorithm HMC (called 'static HMC' in Stan) and NUTS share the
+    following parameters:
+    \itemize{
+      \item \code{stepsize} (\code{double}, positive)
+      \item \code{stepsize_jitter} (\code{double}, [0,1])
+      \item \code{metric} (\code{string}, one of "unit_e", "diag_e", "dense_e")
+    }
+    For algorithm NUTS, we can also set:
+    \itemize{
+      \item \code{max_treedepth} (\code{integer}, positive)
+    }
+    For algorithm HMC, we can also set:
+    \itemize{
+      \item \code{int_time} (\code{double}, positive)
+    }
+    
+    For \code{test_grad} mode, the following parameters can be set:
+    \itemize{
+      \item \code{epsilon} (\code{double}, defaults to 1e-6)
+      \item \code{error} (\code{double}, defaults to 1e-6)
+    }
+  }
+
+\item{sample_file}{An optional character string providing the name of a file.
+    If specified the draws for \emph{all} parameters and other saved quantities
+    will be written to the file. If not provided, files are not created. 
+    When the folder specified is not writable, \code{tempdir()} is used. 
+    When there are multiple chains, an underscore and chain number are appended
+    to the file name.}
+
+\item{diagnostic_file}{An optional character string providing the name of a file.
+    If specified the diagnostics data for \emph{all} parameters will be written
+    to the file. If not provided, files are not created. When the folder specified 
+    is not writable, \code{tempdir()} is used. When there are multiple chains, 
+    an underscore and chain number are appended to the file name.}
+
+\item{save_dso}{Logical, with default \code{TRUE}, indicating whether the 
+    dynamic shared object (DSO) compiled from the C++ code for the model 
+    will be saved or not. If \code{TRUE}, we can draw samples from
+    the same model in another \R session using the saved DSO (i.e., 
+    without compiling the C++ code again).
+    This parameter only takes effect if \code{fit} is not used; with  
+    \code{fit} defined, the DSO from the previous run is used.
+    When \code{save_dso=TRUE}, the fitted object can be loaded from 
+    what is saved previously and used for sampling, if the compiling is
+    done on the same platform, that is, same operating system and same 
+    architecture (32bits or 64bits).}
+
+\item{verbose}{\code{TRUE} or \code{FALSE}: flag indicating whether 
+    to print intermediate output from Stan on the console, which might
+    be helpful for model debugging.}
+
+\item{include}{Logical scalar defaulting to \code{TRUE} indicating
+    whether to include or exclude the parameters given by the 
+    \code{pars} argument. If \code{FALSE}, only entire multidimensional
+    parameters can be excluded, rather than particular elements of them.}
+
+\item{cores}{
+    The number of cores to use when executing the Markov chains in parallel.
+    The default is to use the value of the \code{"mc.cores"} option if it 
+    has been set and otherwise to default to 1 core. However, we recommend 
+    setting it to be as many processors as the hardware and RAM allow 
+    (up to the number of chains). See \code{\link[parallel]{detectCores}} 
+    if you don't know this number for your system.
+  }
+
+\item{open_progress}{Logical scalar that only takes effect if 
+    \code{cores > 1} but is recommended to be \code{TRUE} in interactive
+    use so that the progress of the chains will be redirected to a file
+    that is automatically opened for inspection. For very short runs, the
+    user might prefer \code{FALSE}.}
+
+\item{...}{Other optional parameters: 
+    \itemize{
+      \item \code{chain_id} (\code{integer})
+      \item \code{init_r} (\code{double}, positive)
+      \item \code{test_grad} (\code{logical})
+      \item \code{append_samples} (\code{logical})
+      \item \code{refresh}(\code{integer})
+      \item \code{save_warmup}(\code{logical})
+      \item deprecated: \code{enable_random_init}(\code{logical}) 
+    }
+
+    \code{chain_id} can be a vector to specify the chain_id for all 
+    chains or an integer. For the former case, they should be unique. 
+    For the latter, the sequence of integers starting from the given
+    \code{chain_id} are used for all chains. 
+
+    \code{init_r} is used only for generating random initial values,
+    specifically when \code{init="random"} or not all parameters
+    are initialized in the user-supplied list or function. If specified, 
+    the initial values are simulated uniformly from interval 
+    [-\code{init_r}, \code{init_r}] rather than using the default interval 
+    (see the manual of (cmd)Stan).
+    
+    \code{test_grad} (\code{logical}).  
+    If \code{test_grad=TRUE}, Stan will not do any sampling. Instead,
+    the gradient calculation is tested and printed out and the fitted
+    \code{stanfit} object is in test gradient mode.  By default, it is
+    \code{FALSE}.
+    
+    \code{append_samples} (\code{logical}). 
+    Only relevant if \code{sample_file} is specified \emph{and} is an 
+    existing file. In that case, setting \code{append_samples=TRUE} will append 
+    the samples to the existing file rather than overwriting the contents of 
+    the file.
+
+    \code{refresh} (\code{integer}) can be used to
+    control how often the progress of the sampling is reported (i.e. 
+    show the progress every \code{refresh} iterations). 
+    By default, \code{refresh = max(iter/10, 1)}. 
+    The progress indicator is turned off if \code{refresh <= 0}.
+
+    Deprecated: \code{enable_random_init} (\code{logical}) being \code{TRUE}
+    enables specifying initial values randomly when the initial
+    values are not fully specified from the user. 
+    
+    \code{save_warmup} (\code{logical}) indicates whether to 
+    save draws during the warmup phase and defaults to \code{TRUE}. Some
+    memory related problems can be avoided by setting it to \code{FALSE},
+    but some diagnostics are more limited if the warmup draws are not
+    stored.
+  }
+
+\item{boost_lib}{The path for an alternative version of the Boost C++ 
+    to use instead of the one in the \pkg{BH} package.}
+
+\item{eigen_lib}{The path for an alternative version of the Eigen C++ 
+     library to the one in \pkg{RcppEigen}.}
+}
 \description{
 Sample from the posterior distribution by calling \code{\link[rstan:stan]{stan}}. 
 Check \code{\link[rstan:stan]{stan}} for details of the arguments.

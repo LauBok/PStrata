@@ -4,7 +4,6 @@
 #' after randomization
 #' 
 #' @export PStrata
-#' @useDynLib PStrata
 #' 
 #' @param PSobject an object of class \code{\link{PSObject}}. 
 #' If left blank, the object is constructed using the following arguments.
@@ -15,6 +14,7 @@
 #' @param ... additional parameters to be passed into \code{\link{PSSample}}.
 #' 
 #' @examples 
+#' require(abind)
 #' PSobj <- PSObject(
 #'   S.formula = Z + D ~ 1,
 #'   Y.formula = Y ~ 1,
@@ -42,7 +42,7 @@
 #' which is a list containing the \code{PSObject} and the posterior samples (of class \code{stanfit})
 PStrata <- function(
     PSobject,
-    S.fomula,
+    S.formula,
     Y.formula,
     Y.family,
     data = NULL,
@@ -83,4 +83,36 @@ PStrata <- function(
   else
     class(res) <- "PStrata"
   return (res)
+}
+
+#' @export
+print.PStrata <- function(x,...) {
+  cat("PStrata Object with", x$PSobject$strata_info$num_strata, "strata.\n")
+  cat("The estimated proportion for each strata: \n")
+  strata_prob <- colMeans(rstan::extract(x$post_samples)$'strata_prob')
+  names(strata_prob) <- x$PSobject$strata_info$strata_names
+  cat(strata_prob, '\n')
+  cat("Use summary() to show confidence intervals.\n")
+  cat("Use PSOutcome() to show outcomes and PSContrast() to show constrasts.\n")
+}
+
+#' @export
+print.PStrata_survival <- function(x, ...) {
+  print.PStrata(x, ...)
+}
+
+#' @export
+summary.PStrata <- function(object, ...) {
+  strata_prob <- t(apply(rstan::extract(object$post_samples)$'strata_prob', 2,
+                       function(x) c(mean(x), stats::sd(x), stats::quantile(x, 0.025), 
+                                     stats::quantile(x, 0.25), stats::median(x), stats::quantile(x, 0.75),
+                                     stats::quantile(x, 0.975))))
+  rownames(strata_prob) <- object$PSobject$strata_info$strata_names
+  colnames(strata_prob) <- c("mean", "sd", "2.5%", "25%", "median", "75%", "97.5%")
+  return (strata_prob)
+}
+
+#' @export
+summary.PStrata_survival <- function(object, ...) {
+  return (summary.PStrata(object, ...))
 }

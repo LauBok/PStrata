@@ -4,11 +4,13 @@
 \alias{PSObject}
 \title{Create a Principal Stratification Object}
 \usage{
-\code{
-PSObject <- function(
-  S.formula, Y.formula, Y.family, 
+PSObject(
+  S.formula,
+  Y.formula,
+  Y.family,
   data = NULL,
-  strata = NULL, ER = NULL,
+  strata = NULL,
+  ER = NULL,
   prior_intercept = prior_flat(),
   prior_coefficient = prior_normal(),
   prior_sigma = prior_inv_gamma(),
@@ -17,7 +19,6 @@ PSObject <- function(
   prior_theta = prior_normal(),
   survival.time.points = 50
 )
-}
 }
 \arguments{
 \item{S.formula, Y.formula}{an object of class "\code{\link{PSFormula}}" (or an

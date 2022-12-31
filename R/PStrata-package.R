@@ -13,7 +13,6 @@
 #' @name PStrata-package
 #' @docType package
 #' @alias PStrata-package
-#' @useDynLib PStrata
 #' @details 
 #' The Bayesian principal stratification analysis relies on two models, the principal stratum model and the outcome model.
 #' The main function of \pkg{PStrata} is \code{\link{PStrata}}, which uses formula syntax to specify these models.
@@ -24,7 +23,6 @@
 #' However, a large number of post-processing methods can also be applied.
 #' \code{\link[=PStrata]{summary}} is perfectly suited for an overview of the estimated parameters, 
 #' and \code{\link[=PStrata]{plot}} provides visualization of the principal stratification and the outcome distribution.
-#' Customized outcome calculation can be performed with \link{TODO}.
 #' 
 #' Because \pkg{PStrata} heavily relies on \pkg{Stan} for posterior sampling, a C++ compiler is required.
 #' The program \pkg{Rtools} (available on \url{https://cran.r-project.org/bin/windows/Rtools/}) comes with a C++ compiler for Windows.
