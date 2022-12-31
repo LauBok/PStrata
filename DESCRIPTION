@@ -7,9 +7,9 @@ Author: Bo Liu
 Maintainer: Bo Liu <bl226@duke.edu>
 Description: One paragraph description of what the package
       does as one or more full sentences.
-Collate: PStrata-package.R PSFormula.R PStrataInfo.R survival.R prior.R make_standata.R make_psofile.R
+Collate: PStrata-package.R PSFormula.R PStrataInfo.R survival.R prior.R make_standata.R 
          PSObject.R make_stancode.R PSSample.R write_auxillary_files.R PStrata.R PSOutcome.R RcppExports.R 
-         sim_data_normal.R sim_data_Cox.R
+         sim_data_normal.R sim_data_Cox.R PSContrast.R
 License: GPL (>= 2)
 Imports: Rcpp (>= 1.0.6), patchwork, ggplot2, tidyverse, rstan, lme4
 LinkingTo: Rcpp
