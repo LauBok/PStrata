@@ -41,7 +41,7 @@
 #' @return An object of class \code{PStrata} or \code{PStrata_survival}, 
 #' which is a list containing the \code{PSObject} and the posterior samples (of class \code{stanfit})
 PStrata <- function(
-    PSobject,
+    PSobject = NULL,
     S.formula,
     Y.formula,
     Y.family,
@@ -59,14 +59,20 @@ PStrata <- function(
     ...
 ) {
   if (is.null(PSobject)){
-    PSobject <- PSObject(S.formula, Y.formula, Y.family,
-                         data, strata, ER, 
-                         prior_intercept, 
-                         prior_coefficient,
-                         prior_alpha,
-                         prior_lambda,
-                         prior_theta,
-                         survival.time.points)
+    PSobject <- PSObject(
+      S.formula = S.formula, 
+      Y.formula = Y.formula,
+      Y.family = Y.family,
+      data = data, 
+      strata = strata, 
+      ER = ER, 
+      prior_intercept = prior_intercept, 
+      prior_coefficient = prior_coefficient,
+      prior_alpha = prior_alpha,
+      prior_lambda = prior_lambda,
+      prior_theta = prior_theta,
+      survival.time.points = survival.time.points
+    )
   }
   stancode <- make_stancode(PSobject, filename)
   standata <- make_standata(PSobject)

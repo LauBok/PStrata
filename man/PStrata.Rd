@@ -5,7 +5,7 @@
 \title{Principal Stratification Analysis for Data with Post-Randomization Intervention}
 \usage{
 PStrata(
-  PSobject,
+  PSobject = NULL,
   S.formula,
   Y.formula,
   Y.family,

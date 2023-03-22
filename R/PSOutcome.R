@@ -180,7 +180,7 @@ plot.PSOutcome <- function(x, se = T, ...) {
     Gplot <- ggplot2::ggplot(plot_df) + ggplot2::geom_point(ggplot2::aes(x = mean, y = "")) + 
       ggplot2::facet_grid(Z~S, scale = "free")
     if (se)
-      Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(xmin = rlang::.data[['2.5%']], xmax = rlang::.data[['97.5%']] , y = ""))
+      Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(xmin = `2.5%`, xmax = `97.5%` , y = ""))
     return (Gplot)
   }
   else {
@@ -189,14 +189,14 @@ plot.PSOutcome <- function(x, se = T, ...) {
       Gplot <- ggplot2::ggplot(plot_df) + ggplot2::geom_point(ggplot2::aes(x = T, y = mean)) + 
         ggplot2::facet_grid(Z~S, scale = "free")
       if (se)
-        Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(ymin = rlang::.data[['2.5%']], ymax = rlang::.data[['97.5%']], x = T))
+        Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(ymin = `2.5%`, ymax = `97.5%`, x = T))
       Gplot <- Gplot + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1))
     }
     else{
       Gplot <- ggplot2::ggplot(plot_df) + ggplot2::geom_line(ggplot2::aes(x = T, y = mean)) + 
         ggplot2::facet_grid(Z~S, scale = "free")
       if (se)
-        Gplot <- Gplot + ggplot2::geom_ribbon(ggplot2::aes(ymin = rlang::.data[['2.5%']], ymax = rlang::.data[['97.5%']], x = T),
+        Gplot <- Gplot + ggplot2::geom_ribbon(ggplot2::aes(ymin = `2.5%`, ymax = `97.5%`, x = T),
                                               alpha = 0.3)
     }
     return (Gplot)
