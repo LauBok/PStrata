@@ -406,11 +406,16 @@ make_stancode <- function(PSobject, filename = NULL, debug = F) {
     for (sg in 1:nrow(SG_table)) {
       s <- SG_table[sg, 'S']
       g <- SG_table[sg, 'G']
-      str_param <- paste0(
-        ", ",
-        paste(sapply(parameter_list, function(param) paste0(param$name, "[", g, "]")), collapse = ", "),
-        ifelse (Y_type == "survival", ", delta[n]", "")
-      )
+      if (length(parameter_list) > 0) {
+        str_param <- paste0(
+          ", ",
+          paste(sapply(parameter_list, function(param) paste0(param$name, "[", g, "]")), collapse = ", "),
+          ifelse (Y_type == "survival", ", delta[n]", "")
+        )
+      }
+      else {
+        str_param <- ""
+      }
       model_output_lines <- c(
         model_output_lines,
         paste0("                log_l[", number, "] = log_prob[", s + 1, "] + ", func_family, "(Y[n] | ",

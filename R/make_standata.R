@@ -14,7 +14,7 @@ make_standata <- function(PSobject){
               nrow(PSobject$S.formula$data) == nrow(PSobject$Y.formula$data))
   
   D_names <- PSobject$S.formula$response_names[-1]
-  D_data <- dplyr::select(PSobject$S.formula$data, dplyr::all_of(c("D")))
+  D_data <- dplyr::select(PSobject$S.formula$data, dplyr::all_of(D_names))
   D_int <- apply(D_data, 1, 
         function(x) 
           t(c(x, 0)) %*% c(1, cumprod(PSobject$strata_info$max_postrand_level + 1)))
