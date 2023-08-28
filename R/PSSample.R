@@ -3,7 +3,7 @@
 #' Sample from the posterior distribution by calling \code{\link[rstan:stan]{stan}}. 
 #' Check \code{\link[rstan:stan]{stan}} for details of the arguments.
 #' @inheritParams rstan::stan
-#' 
+#' @return An object of S4 class \code{rstan::stanfit}.
 #' @export
 PSSample <- function(file, model_name = "anon_model", model_code = "", fit = NA, 
                      data = list(), pars = NA,

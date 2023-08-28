@@ -48,3 +48,13 @@ real survival_Cox_lpdf(real x, real mu, real theta, int delta) {
     real term2 = exp(mu) * pow(x, exp(theta));
     return delta * term1 - term2;
 } 
+<<<>>>
+
+<<< survival_AFT_lpdf >>>
+real survival_AFT_lpdf(real x, real mu, real sigma, int delta) {
+    real term1 = normal_lccdf(log(x) | mu, sigma);
+    real term2 = normal_lpdf(log(x) | mu, sigma);
+    return (1 - delta) * term1 + delta * term2;
+} 
+<<<>>>
+

@@ -17,3 +17,4 @@ inverse.gaussian    inverse     inv_func
 inverse.gaussian    identity    identity_func
 inverse.gaussian    log         exp
 survival_Cox        identity    identity_func
+survival_AFT        identity    identity_func

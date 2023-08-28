@@ -177,13 +177,15 @@ PSSample(
     In addition, algorithm HMC (called 'static HMC' in Stan) and NUTS share the
     following parameters:
     \itemize{
-      \item \code{stepsize} (\code{double}, positive)
-      \item \code{stepsize_jitter} (\code{double}, [0,1])
-      \item \code{metric} (\code{string}, one of "unit_e", "diag_e", "dense_e")
+      \item \code{stepsize} (\code{double}, positive, defaults to 1) 
+        Note: this controls the \emph{initial} stepsize only, unless \code{adapt_engaged=FALSE}.
+      \item \code{stepsize_jitter} (\code{double}, [0,1], defaults to 0)
+      \item \code{metric} (\code{string}, one of "unit_e", "diag_e", "dense_e", 
+      defaults to "diag_e")
     }
     For algorithm NUTS, we can also set:
     \itemize{
-      \item \code{max_treedepth} (\code{integer}, positive)
+      \item \code{max_treedepth} (\code{integer}, positive, defaults to 10)
     }
     For algorithm HMC, we can also set:
     \itemize{
@@ -303,6 +305,9 @@ PSSample(
 
 \item{eigen_lib}{The path for an alternative version of the Eigen C++ 
      library to the one in \pkg{RcppEigen}.}
+}
+\value{
+An object of S4 class \code{rstan::stanfit}.
 }
 \description{
 Sample from the posterior distribution by calling \code{\link[rstan:stan]{stan}}. 

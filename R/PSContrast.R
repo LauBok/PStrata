@@ -17,6 +17,13 @@
 #' If \code{"cycle"}, contrasts are taken over every consecutive pairs and also between the
 #' first and the last levels.
 #' 
+#' @return An S3 object of class \code{PSContrast} and \code{PSOutcome}, containing
+#' \item{outcome_array}{A num_strata * num_treatment * num_iter array of contrast if the outcome type is non-survival
+#' or a num_strata * num_treatment * num_time_points * num_iter array of contrast if the outcome type is survival.}
+#' \item{is.survival}{A boolean value, whether the outcome type is survival.}
+#' \item{time_points}{The time points at which the outcome is evaluated, if the outcome type is survival.}
+#' The S3 method \code{summary} and \code{plot} can be applied to the returned object.
+#' 
 #' @export
 PSContrast <- function(outcome, S = NULL, Z = NULL, T = NULL, 
                        type = c("all", "sequential", "cycle")) {

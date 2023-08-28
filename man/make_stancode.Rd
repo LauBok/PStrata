@@ -4,7 +4,7 @@
 \alias{make_stancode}
 \title{\bold{Stan} Code for \pkg{PStrata} Models}
 \usage{
-make_stancode(PSobject, filename = NULL, debug = F)
+make_stancode(PSobject, filename = NULL, debug = FALSE)
 }
 \arguments{
 \item{PSobject}{an object of class \code{PSobject}}

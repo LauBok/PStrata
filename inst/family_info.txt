@@ -4,3 +4,4 @@ Gamma               positive    Gamma_lpdf          1   alpha   positive
 poisson             count       poisson_lpmf        0
 inverse.gaussian    real        inv_gaussian_lpdf   1   lambda  real
 survival_Cox        survival    survival_Cox_lpdf   1   theta   real
+survival_AFT        survival    survival_AFT_lpdf   1   sigma   positive

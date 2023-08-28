@@ -29,6 +29,14 @@
 #' chosen. By default, the time points are chosen with equal distance from 0 to the 90\% quantile of the observed
 #' outcome.
 #' @return A list, containing important information describing the principal stratification model.
+#' \item{S.formula, Y.formula}{A \code{PSFormula} object converted from the input \code{S.formula} and \code{Y.formula}}
+#' \item{Y.family}{Same as input.}
+#' \item{is.survival}{A boolean value. \code{TRUE} if \code{Y.family} is \code{survival_Cox} or \code{survival_AFT}.}
+#' \item{strata_info}{A \code{PStrataInfo} object converted from the input \code{strata} and \code{ER}.}
+#' \item{prior_intercept, prior_coefficient, prior_sigma, prior_alpha, prior_lambda, prior_theta}{Same as input.}
+#' \item{survival.time.points}{A list of time points at which the estimated survival probability is evaluated.}
+#' \item{SZDG_table}{A matrix. Each row corresponds to a valid (stratum, treatment, confounder, group) combination.}
+#' \item{Z_names}{A character vector. The names of the levels of the treatment.}
 #' 
 #' @details 
 #' The supported \code{family} objects include two types: native families for ordinary outcome and 
@@ -104,13 +112,13 @@ PSObject <- function(
   prior_theta = prior_normal(),
   survival.time.points = 50
 ) {
-  if (class(S.formula) != "PSFormula") {
+  if (!inherits(S.formula, "PSFormula")) {
     S.formula <- PSFormula(S.formula, data)
   }
-  if (class(Y.formula) != "PSFormula") {
+  if (!inherits(Y.formula, "PSFormula")) {
     Y.formula <- PSFormula(Y.formula, data)
   }
-  if (class(strata) != "PStrataInfo") {
+  if (!inherits(strata, "PStrataInfo")) {
     strata <- PStrataInfo(strata, ER)
   }
   
@@ -158,7 +166,7 @@ PSObject <- function(
       S.formula = S.formula,
       Y.formula = Y.formula,
       Y.family = Y.family,
-      is.survival = Y.family$family %in% c("survival_Cox"),
+      is.survival = Y.family$family %in% c("survival_Cox", "survival_AFT"),
       strata_info = strata,
       prior_intercept = prior_intercept,
       prior_coefficient = prior_coefficient,

@@ -1,19 +1,19 @@
 Package: PStrata
 Type: Package
-Title: Principal Stratification Analysis with Post-randomization Intervention
-Version: 0.0.1
-Date: 2022-12-31
+Title: Principal Stratification Analysis in R
+Version: 0.0.3
+Date: 2023-08-28
 Authors@R:
   c(
     person(given = "Bo", family = "Liu", role = c("aut", "cre"), email = "bl226@duke.edu"),
     person(given = "Fan", family = "Li", role = "ctb", email = "fl35@duke.edu")
   )
 Maintainer: Bo Liu <bl226@duke.edu>
-Description: The package is designed for estimating causal effects in the presense of post-treatment confounding using principal stratification.
+Description: Estimating causal effects in the presence of post-treatment confounding using principal stratification. 'PStrata' allows for customized monotonicity assumptions and exclusion restriction assumptions, with automatic full Bayesian inference supported by 'Stan'. The main function to use in this package is PStrata(), which provides posterior estimates of principal causal effect with uncertainty quantification. Visualization tools are also provided for diagnosis and interpretation. See Liu and Li (2023) <arXiv:2304.02740> for details.
 Collate: PStrata-package.R PSFormula.R PStrataInfo.R survival.R prior.R make_standata.R 
-         PSObject.R make_stancode.R PSSample.R write_auxillary_files.R PStrata.R PSOutcome.R
+         PSObject.R make_stancode.R PSSample.R PStrata.R PSOutcome.R
          sim_data_normal.R sim_data_Cox.R PSContrast.R
 License: GPL (>= 2)
-Imports: patchwork, ggplot2, rstan, lme4, abind, dplyr, purrr, stringr, stats, rlang
+Imports: ggplot2, rstan, lme4, abind, dplyr, purrr, stringr, stats
 LazyData: true
 RoxygenNote: 7.1.2

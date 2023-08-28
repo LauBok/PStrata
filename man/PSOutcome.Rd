@@ -9,6 +9,14 @@ PSOutcome(PStrataObj)
 \arguments{
 \item{PStrataObj}{an object of class \code{PStrata} or \code{PStrata_survival}}
 }
+\value{
+An S3 object of type \code{PSOutcome}, containing
+\item{outcome_array}{A num_strata * num_treatment * num_iter array of mean outcome if the outcome type is non-survival
+or a num_strata * num_treatment * num_time_points * num_iter array of mean outcome if the outcome type is survival.}
+\item{is.survival}{A boolean value, whether the outcome type is survival.}
+\item{time_points}{The time points at which the outcome is evaluated, if the outcome type is survival.}
+The S3 method \code{summary} and \code{plot} can be applied to the returned object.
+}
 \description{
 Create an object useful to present the potential outcomes under each treatment arm
 for each principal stratum. Contrasts between treatment arms or principal strata

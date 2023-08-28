@@ -1,4 +1,4 @@
-# Manual (Version 0.0.1) Updated: 3/24/2022
+# Manual (Version 0.0.3) Updated: 8/28/2023
 
 The package **PStrata** fits Bayesian principal stratification models using **Stan**. A wide variety of models, priors and assumptions are allowed to provide flexibility.
 

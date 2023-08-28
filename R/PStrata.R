@@ -23,8 +23,7 @@
 #'   strata = c(n = "00*", c = "01", a = "11*")
 #' )
 #' 
-#' #----- Not Run ------
-#' # PStrata(PSobj, cores = 6, chains = 6, iter = 1000)
+#' \donttest{PStrata(PSobj, cores = 2, chains = 2, iter = 200)}
 #' 
 #' # Another example for survival data
 #' PSobj <- PSObject(
@@ -32,14 +31,15 @@
 #'   Y.formula = Y + delta ~ 1,
 #'   Y.family = survival("Cox"),
 #'   data = sim_data_Cox,
-#'   strata = c(`never-taker` = "00*", complier = "01")
+#'   strata = c(`never-taker` = "00*", complier = "01", `always-taker` = "11*")
 #' )
 #' 
-#' #----- Not Run ------
-#' # PStrata(PSobj, cores = 6, chains = 6, iter = 1000)
+#' \donttest{PStrata(PSobj, cores = 2, chains = 2, iter = 200)}
 #' 
 #' @return An object of class \code{PStrata} or \code{PStrata_survival}, 
-#' which is a list containing the \code{PSObject} and the posterior samples (of class \code{stanfit})
+#' which is a list containing 
+#' \item{PSobject}{An object of \code{PSObject}.}
+#' \item{post_samples}{An object of class \code{rstan::stanfit} returned by \pkg{Stan}.}
 PStrata <- function(
     PSobject = NULL,
     S.formula,

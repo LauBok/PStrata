@@ -50,6 +50,14 @@ outcome.}
 }
 \value{
 A list, containing important information describing the principal stratification model.
+\item{S.formula, Y.formula}{A \code{PSFormula} object converted from the input \code{S.formula} and \code{Y.formula}}
+\item{Y.family}{Same as input.}
+\item{is.survival}{A boolean value. \code{TRUE} if \code{Y.family} is \code{survival_Cox} or \code{survival_AFT}.}
+\item{strata_info}{A \code{PStrataInfo} object converted from the input \code{strata} and \code{ER}.}
+\item{prior_intercept, prior_coefficient, prior_sigma, prior_alpha, prior_lambda, prior_theta}{Same as input.}
+\item{survival.time.points}{A list of time points at which the estimated survival probability is evaluated.}
+\item{SZDG_table}{A matrix. Each row corresponds to a valid (stratum, treatment, confounder, group) combination.}
+\item{Z_names}{A character vector. The names of the levels of the treatment.}
 }
 \description{
 Create an object containing essential information to create the Stan file and 

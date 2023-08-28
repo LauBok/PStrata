@@ -5,10 +5,15 @@
 #' are easy to obtain from this object.
 #' 
 #' @param PStrataObj an object of class \code{PStrata} or \code{PStrata_survival}
-#' 
+#' @return An S3 object of type \code{PSOutcome}, containing
+#' \item{outcome_array}{A num_strata * num_treatment * num_iter array of mean outcome if the outcome type is non-survival
+#' or a num_strata * num_treatment * num_time_points * num_iter array of mean outcome if the outcome type is survival.}
+#' \item{is.survival}{A boolean value, whether the outcome type is survival.}
+#' \item{time_points}{The time points at which the outcome is evaluated, if the outcome type is survival.}
+#' The S3 method \code{summary} and \code{plot} can be applied to the returned object.
 #' @export
 PSOutcome <- function(PStrataObj) {
-  if (class(PStrataObj) == "PStrata"){
+  if (inherits(PStrataObj, "PStrata")){
     mean_effect <- rstan::extract(PStrataObj$post_samples)$'mean_effect'
     S_count <- PStrataObj$PSobject$strata_info$num_strata
     Z_count <- PStrataObj$PSobject$strata_info$num_treatment
@@ -29,7 +34,7 @@ PSOutcome <- function(PStrataObj) {
     return (structure(
       list(
         outcome_array = outcome_array,
-        is.survival = F
+        is.survival = FALSE
       ),
       class = "PSOutcome"
     ))
@@ -59,7 +64,7 @@ PSOutcome <- function(PStrataObj) {
     return (structure(
       list(
         outcome_array = outcome_array,
-        is.survival = T,
+        is.survival = TRUE,
         time_points = time_points
       ),
       class = "PSOutcome"
@@ -175,28 +180,30 @@ summary.PSOutcome <- function(object, type = c("array", "matrix", "data.frame"),
 
 #' @export
 plot.PSOutcome <- function(x, se = T, ...) {
+  lwr <- upr <- NULL
+  plot_df <- summary(x, "data.frame")
+  plot_df$lwr <- plot_df$`2.5%`
+  plot_df$upr <- plot_df$`97.5%`
   if (!x$is.survival) {
-    plot_df <- summary(x, "data.frame")
     Gplot <- ggplot2::ggplot(plot_df) + ggplot2::geom_point(ggplot2::aes(x = mean, y = "")) + 
       ggplot2::facet_grid(Z~S, scale = "free")
     if (se)
-      Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(xmin = `2.5%`, xmax = `97.5%` , y = ""))
+      Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(xmin = lwr, xmax = upr , y = ""))
     return (Gplot)
   }
   else {
-    plot_df <- summary(x, "data.frame")
     if (any(is.na(as.integer(plot_df$T)))) {
       Gplot <- ggplot2::ggplot(plot_df) + ggplot2::geom_point(ggplot2::aes(x = T, y = mean)) + 
         ggplot2::facet_grid(Z~S, scale = "free")
       if (se)
-        Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(ymin = `2.5%`, ymax = `97.5%`, x = T))
+        Gplot <- Gplot + ggplot2::geom_linerange(ggplot2::aes(ymin = lwr, ymax = upr, x = T))
       Gplot <- Gplot + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust=1))
     }
     else{
       Gplot <- ggplot2::ggplot(plot_df) + ggplot2::geom_line(ggplot2::aes(x = T, y = mean)) + 
         ggplot2::facet_grid(Z~S, scale = "free")
       if (se)
-        Gplot <- Gplot + ggplot2::geom_ribbon(ggplot2::aes(ymin = `2.5%`, ymax = `97.5%`, x = T),
+        Gplot <- Gplot + ggplot2::geom_ribbon(ggplot2::aes(ymin = lwr, ymax = upr, x = T),
                                               alpha = 0.3)
     }
     return (Gplot)

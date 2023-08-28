@@ -11,7 +11,7 @@
 #' @return A string, which can be printed on screen using \code{\link{cat}}.
 #'
 #' @export
-make_stancode <- function(PSobject, filename = NULL, debug = F) {
+make_stancode <- function(PSobject, filename = NULL, debug = FALSE) {
   ## initialization ----------
   SZDG_max <- apply(PSobject$SZDG_table, 2, max)
   S_re <- length(PSobject$S.formula$random_eff_list)
@@ -156,7 +156,7 @@ make_stancode <- function(PSobject, filename = NULL, debug = F) {
         stan_data_output_lines, 
         paste0("    int<lower=0> ", tmp_P, "; // number of random effect terms"),
         paste0("    int<lower=0> ", tmp_N, "; // number of levels"),
-        paste0("    matrix[N, ", tmp_P, "*", tmp_N, "] " + tmp_X + 
+        paste0("    matrix[N, ", tmp_P, "*", tmp_N, "] ", tmp_X, 
                  "; // model matrix for random effect")
       )
     }
@@ -340,8 +340,10 @@ make_stancode <- function(PSobject, filename = NULL, debug = F) {
     } else if (type == "coefficient") {
       model_output_lines <- c(
         model_output_lines,
-        paste0("    to_vector(beta_S[:, 2:PS]) ~ ", func, "(", params_str, ");"),
-        paste0("    to_vector(beta_G[:, 2:PS]) ~ ", func, "(", params_str, ");")
+        "    if (PS >= 2)",
+        paste0("        to_vector(beta_S[:, 2:PS]) ~ ", func, "(", params_str, ");"),
+        "    if (PG >= 2)",
+        paste0("        to_vector(beta_G[:, 2:PG]) ~ ", func, "(", params_str, ");")
       )
     } else {
       found <- F
@@ -421,8 +423,9 @@ make_stancode <- function(PSobject, filename = NULL, debug = F) {
         paste0("                log_l[", number, "] = log_prob[", s + 1, "] + ", func_family, "(Y[n] | ",
                func_link, "(", "XG[n] * beta_G[", g, "]'", 
                ifelse(Y_re == 0, "", paste(
+                 sapply(
                  1:Y_re, function(i) paste0(" + XG_RE_", i, "[n] * beta_G_RE_", i, "[", g, "]'")
-               )),
+               ))),
                ")", str_param, ");"
         )
       )
@@ -466,7 +469,9 @@ make_stancode <- function(PSobject, filename = NULL, debug = F) {
              ");"
       ),
       ifelse(Y_family == "survival_Cox", 
-             "                    expected_surv_prob[j][i,t] = exp(-exp(mu) * pow(time[t], exp(theta[j])));", ""),
+             "                    expected_surv_prob[j][i,t] = exp(-exp(mu) * pow(time[t], exp(theta[j])));", 
+             ifelse(Y_family == "survival_AFT", 
+                    "                    expected_surv_prob[j][i,t] = 1 - normal_cdf(log(time[t]), mu, sigma[j]);", "")),
       "                }"
     )
   } else {
