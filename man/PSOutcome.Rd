@@ -4,7 +4,7 @@
 \alias{PSOutcome}
 \title{Estimated potential outcome for principal stratification analysis}
 \usage{
-PSOutcome(PStrataObj)
+PSOutcome(PStrataObj, type = c("survival_prob", "RACE"))
 }
 \arguments{
 \item{PStrataObj}{an object of class \code{PStrata} or \code{PStrata_survival}}
