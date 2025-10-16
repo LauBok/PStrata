@@ -4,10 +4,12 @@
 \alias{PSOutcome}
 \title{Estimated potential outcome for principal stratification analysis}
 \usage{
-PSOutcome(PStrataObj, type = c("survival_prob", "RACE"))
+PSOutcome(PStrataObj, type = c("probability", "RACE"))
 }
 \arguments{
 \item{PStrataObj}{an object of class \code{PStrata} or \code{PStrata_survival}}
+
+\item{type}{whether the causal estimand is survival probability or RACE, ignored for non-survival outcomes.}
 }
 \value{
 An S3 object of type \code{PSOutcome}, containing

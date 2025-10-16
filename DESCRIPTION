@@ -1,19 +1,23 @@
 Package: PStrata
 Type: Package
 Title: Principal Stratification Analysis in R
-Version: 0.0.3
-Date: 2023-10-16
+Version: 0.0.6
+Date: 2025-10-16
+Encoding: UTF-8
 Authors@R:
   c(
-    person(given = "Bo", family = "Liu", role = c("aut", "cre"), email = "bl226@duke.edu"),
+    person(given = "Bo", family = "Liu", role = c("aut", "cre"), email = "bo.liu1997@gmail.com"),
     person(given = "Fan", family = "Li", role = "ctb", email = "fl35@duke.edu")
   )
-Maintainer: Bo Liu <bl226@duke.edu>
+Maintainer: Bo Liu <bo.liu1997@gmail.com>
 Description: Estimating causal effects in the presence of post-treatment confounding using principal stratification. 'PStrata' allows for customized monotonicity assumptions and exclusion restriction assumptions, with automatic full Bayesian inference supported by 'Stan'. The main function to use in this package is PStrata(), which provides posterior estimates of principal causal effect with uncertainty quantification. Visualization tools are also provided for diagnosis and interpretation. See Liu and Li (2023) <arXiv:2304.02740> for details.
+Depends: R (>= 3.5.0)
 Collate: PStrata-package.R PSFormula.R PStrataInfo.R survival.R prior.R make_standata.R 
          PSObject.R make_stancode.R PSSample.R PStrata.R PSOutcome.R
          sim_data_normal.R sim_data_Cox.R PSContrast.R
 License: GPL (>= 2)
+Suggests: R.rsp
+VignetteBuilder: R.rsp
 Imports: ggplot2, rstan, lme4, abind, dplyr, purrr, stringr, stats
 LazyData: true
-RoxygenNote: 7.1.2
+RoxygenNote: 7.3.3

@@ -28,12 +28,7 @@ PStrata(
 If left blank, the object is constructed using the following arguments.
 See \code{\link{PSObject}} for details.}
 
-\item{S.formula}{an object of class "\code{\link{PSFormula}}" (or an
-object of class "\code{\link{formula}}" that can be coerced to
-that class with \code{data} provided) specifying the model for principal
-stratum and outcome respectively. See \code{\link{PSFormula}} for details.}
-
-\item{Y.formula}{an object of class "\code{\link{PSFormula}}" (or an
+\item{S.formula, Y.formula}{an object of class "\code{\link{PSFormula}}" (or an
 object of class "\code{\link{formula}}" that can be coerced to
 that class with \code{data} provided) specifying the model for principal
 stratum and outcome respectively. See \code{\link{PSFormula}} for details.}
@@ -48,27 +43,12 @@ Supported families and corresponding link functions are presented in 'Details' b
 it into a \code{PSFormula} object. When this happens, the data frame should 
 contain all of the variables with names given in \code{S.formula} or \code{Y.formula}.}
 
-\item{strata}{arguments to define the principal strata. See \code{\link{PStrataInfo}} for details.
+\item{strata, ER}{arguments to define the principal strata. See \code{\link{PStrataInfo}} for details.
 
 Alternatively, one can pass an object of class \code{PStrataInfo} to \code{strata},
 and \code{ER} will be ignored.}
 
-\item{ER}{arguments to define the principal strata. See \code{\link{PStrataInfo}} for details.
-
-Alternatively, one can pass an object of class \code{PStrataInfo} to \code{strata},
-and \code{ER} will be ignored.}
-
-\item{prior_intercept}{prior distribution for corresponding parameters in the model.}
-
-\item{prior_coefficient}{prior distribution for corresponding parameters in the model.}
-
-\item{prior_sigma}{prior distribution for corresponding parameters in the model.}
-
-\item{prior_alpha}{prior distribution for corresponding parameters in the model.}
-
-\item{prior_lambda}{prior distribution for corresponding parameters in the model.}
-
-\item{prior_theta}{prior distribution for corresponding parameters in the model.}
+\item{prior_intercept, prior_coefficient, prior_sigma, prior_alpha, prior_lambda, prior_theta}{prior distribution for corresponding parameters in the model.}
 
 \item{survival.time.points}{a vector of time points at which the estimated survival probability is evaluated 
 (only used when the type of outcome is survival), or an integer specifying the number of time points to be

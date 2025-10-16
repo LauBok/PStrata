@@ -1,7 +1,7 @@
 #' Sample with \code{Stan}
 #' 
-#' Sample from the posterior distribution by calling \code{\link[rstan:stan]{stan}}. 
-#' Check \code{\link[rstan:stan]{stan}} for details of the arguments.
+#' Sample from the posterior distribution by calling \code{\link[rstan]{stan}}. 
+#' Check \code{\link[rstan]{stan}} for details of the arguments.
 #' @inheritParams rstan::stan
 #' @return An object of S4 class \code{rstan::stanfit}.
 #' @export

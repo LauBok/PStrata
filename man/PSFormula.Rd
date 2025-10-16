@@ -111,7 +111,7 @@ intercepts to account for unmeasured confounding.
 For example, \code{x + y + (1 | g)} specifies a model with population predictors
 \code{x} and \code{y}, as well as random intercept for each level of \code{g}.
 
-For more complex random effect structures, refer to \code{\link[lme4:lmer]{lme4::lmer}}.
+For more complex random effect structures, refer to \code{\link[lme4]{lmer}}.
 However, structures other than simple random intercepts and slopes may lead to unexpected behaviors.
 }
 }

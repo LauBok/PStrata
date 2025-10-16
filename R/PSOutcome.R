@@ -5,6 +5,7 @@
 #' are easy to obtain from this object.
 #' 
 #' @param PStrataObj an object of class \code{PStrata} or \code{PStrata_survival}
+#' @param type whether the causal estimand is survival probability or RACE, ignored for non-survival outcomes.
 #' @return An S3 object of type \code{PSOutcome}, containing
 #' \item{outcome_array}{A num_strata * num_treatment * num_iter array of mean outcome if the outcome type is non-survival
 #' or a num_strata * num_treatment * num_time_points * num_iter array of mean outcome if the outcome type is survival.}
