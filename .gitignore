@@ -5,3 +5,7 @@
 src/*.o
 src/*.so
 src/*.dll
+.claude/
+CLAUDE.md
+R_backup/
+*conflicted copy*

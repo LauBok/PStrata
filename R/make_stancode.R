@@ -1,8 +1,8 @@
 #' \bold{Stan} Code for \pkg{PStrata} Models
-#' 
+#'
 #' Generate the \bold{Stan} code corresponding to the model,
 #' which is read by \bold{Stan} to do sampling.
-#' 
+#'
 #' @param PSobject an object of class \code{PSobject}
 #' @param filename (optional) string. If not \code{NULL}, the stan file will be saved via
 #' \code{\link{cat}} in a text file named after the string supplied.
@@ -12,558 +12,605 @@
 #'
 #' @export
 make_stancode <- function(PSobject, filename = NULL, debug = FALSE) {
-  ## initialization ----------
-  SZDG_max <- apply(PSobject$SZDG_table, 2, max)
-  S_re <- length(PSobject$S.formula$random_eff_list)
-  Y_re <- length(PSobject$Y.formula$random_eff_list)
-  Y_family <- PSobject$Y.family$family
-  Y_link <- PSobject$Y.family$link
-  Y_type <- NULL
-  func_family <- NULL
-  func_link <- NULL
-  parameter_list <- list()
-  prior_list <- list()
-  
-  ### prior ----------
-  prior_names <- c("intercept", "coefficient", "sigma", "alpha", "lambda", "theta")
-  for(name in prior_names){
-    prior_curr <- eval(parse(text = paste0("PSobject$prior_", name)))
-    prior_args <- prior_curr$args
-    prior_list <- append(prior_list, list(list(
-      type = name,
-      func = prior_curr$name,
-      param = unlist(prior_args)
-    )))
-  }
-  
-  ### family info ----------
-  if (debug) 
-    family_info_lines <- readLines("/inst/family_info.txt")
-  else
-    family_info_lines <- readLines(paste0(path.package("PStrata"), "/family_info.txt"))
-  splitted_family_info_lines <- stringr::str_split(family_info_lines, " +")
-  for (splitted_line in splitted_family_info_lines) {
-    if (Y_family == splitted_line[1]) {
-      if (as.integer(splitted_line[4]) > 0){
-        for (i in 1:as.integer(splitted_line[4])){
-          parameter_list <- append(parameter_list, list(list(
-            name = splitted_line[2 * i + 3],
-            type = splitted_line[2 * i + 4]
-          )))
-        }
-      }
-      func_family <- splitted_line[3]
-      Y_type <- splitted_line[2]
-    }
-  }
-  
-  ### link info ---------
-  if (debug)
-    link_info_lines <- readLines("inst/link_info.txt")
-  else
-    link_info_lines <- readLines(paste0(path.package("PStrata"), "/link_info.txt"))
-  splitted_link_info_lines <- stringr::str_split(link_info_lines, " +")
-  for (splitted_line in splitted_link_info_lines) {
-    if (Y_family == splitted_line[1] && Y_link == splitted_line[2]) {
-      func_link <- splitted_line[3]
-    }
-  }
-  
-  ## functions ----------
-  if (debug)
-    func_imp_lines <- readLines("inst/function_implement.txt")
-  else
-    func_imp_lines <- readLines(paste0(path.package("PStrata"), "/function_implement.txt"))
-  func_output_lines <- c()
-  aim <- F
-  for (line in func_imp_lines) {
-    if (line == "<<<>>>") aim <- F
-    if (!aim) {
-      splitted <- stringr::str_split(line, " ")[[1]]
-      if (splitted[1] == "<<<") {
-        func_name <- splitted[2]
-        if (func_name == func_family || func_name == func_link)
-          aim <- T
-      }
-      next
-    }
-    else {
-      func_output_lines <- c(func_output_lines, paste0("    ", line)) 
-    }
-  }
-  if (length(func_output_lines) > 0)
-    func_output_lines <- c("functions {", func_output_lines, "}")
-  
-  ## stan_data -----------
-  stan_data_output_lines <- c(
-    "data {",
-    "    int<lower=0> N; // number of observations",
-    "    int<lower=0> PS; // number of predictors for principal stratum model",
-    "    int<lower=0> PG; // number of predictors for outcome model",
-    paste0("    int<lower=0, upper=", SZDG_max[2], "> Z[N]; // treatment arm"),
-    paste0("    int<lower=0, upper=", SZDG_max[3], "> D[N]; // post randomization confounding variable")
+  ctx <- build_stan_context(PSobject, debug)
+
+  blocks <- c(
+    stan_comment_lines(),
+    " ",
+    stan_functions_block(ctx),
+    " ",
+    stan_data_block(ctx),
+    " ",
+    stan_transformed_data_block(ctx),
+    " ",
+    stan_parameters_block(ctx),
+    " ",
+    stan_transformed_parameters_block(ctx),
+    " ",
+    stan_model_block(ctx),
+    " ",
+    stan_generated_quantities_block(ctx)
   )
-  if (Y_type == "real") {
-    Y_line <- "    real Y[N]; // real outcome"
-  } else if (Y_type == "positive") {
-    Y_line <- "    real<lower=0> Y[N]; // positive outcome"
-  } else if (Y_type == "binary") {
-    Y_line <- "    int<lower=0, upper=1> Y[N]; // binary outcome"
-  } else if (Y_type == "count") {
-    Y_line <- "    int<lower=0> Y[N]; // count outcome"
-  } else if (Y_type == "survival") {
-    Y_line <- c(
-      "    real<lower=0> Y[N]; // survival outcome",
-      "    int<lower=0, upper=1> delta[N]; // event indicator",
-      "    int<lower=0> T; // number of time points for evaluation",
-      "    real<lower=0> time[T]; // time points"
-    )
-  }
-  stan_data_output_lines <- c(stan_data_output_lines, Y_line)
-  stan_data_output_lines <- c(
-    stan_data_output_lines,
-    "    matrix[N, PS] XS; // model matrix for principal stratum model",
-    "    matrix[N, PG] XG; // model matrix for outcome model"
-  )
-  if (S_re > 0) {
-    stan_data_output_lines <- c(
-      stan_data_output_lines,
-      "    // random effect for principal stratum model"
-    )
-    for (i in 1:S_re) {
-      tmp_P <- paste0("PS_RE_", i)
-      tmp_N <- paste0("NS_RE_", i)
-      tmp_X <- paste0("XS_RE_", i)
-      stan_data_output_lines <- c(
-        stan_data_output_lines, 
-        paste0("    int<lower=0> ", tmp_P, "; // number of random effect terms"),
-        paste0("    int<lower=0> ", tmp_N, "; // number of levels"),
-        paste0("    matrix[N, ", tmp_P, "*", tmp_N, "] " + tmp_X + 
-                 "; // model matrix for random effect")
-      )
-    }
-  }
-  if (Y_re > 0) {
-    stan_data_output_lines <- c(
-      stan_data_output_lines,
-      "    // random effect for outcome model"
-    )
-    for (i in 1:Y_re) {
-      tmp_P <- paste0("PG_RE_", i)
-      tmp_N <- paste0("NG_RE_", i)
-      tmp_X <- paste0("XG_RE_", i)
-      stan_data_output_lines <- c(
-        stan_data_output_lines, 
-        paste0("    int<lower=0> ", tmp_P, "; // number of random effect terms"),
-        paste0("    int<lower=0> ", tmp_N, "; // number of levels"),
-        paste0("    matrix[N, ", tmp_P, "*", tmp_N, "] ", tmp_X, 
-                 "; // model matrix for random effect")
-      )
-    }
-  }
-  stan_data_output_lines <- c(
-    stan_data_output_lines,
-    "}"
-  )
-  
-  ## transformed data -------------
-  transformed_data_output_lines <- c(
-    "transformed data {",
-    paste0("    int S[", SZDG_max[4], "];")
-  )
-  SG_table <- unique(PSobject$SZDG_table[, c("S", "G")])
-  for (i in 1:nrow(SG_table)) {
-    transformed_data_output_lines <- c(
-      transformed_data_output_lines,
-      paste0("   S[", SG_table[i, "G"], "] = ", SG_table[i, "S"] + 1, ";")
-    )
-  }
-  transformed_data_output_lines <- c(
-    transformed_data_output_lines,
-    "}"
-  )
-  
-  ## parameters ---------------
-  parameters_output_lines <- c(
-    "parameters {",
-    paste0("    matrix[", SZDG_max['S'], ", PS] beta_S; // coefficients for principal stratum model"),
-    paste0("    matrix[", SZDG_max['G'], ", PG] beta_G; // coefficients for outcome model")
-  )
-  if (S_re > 0) {
-    parameters_output_lines <- c(
-      parameters_output_lines,
-      "    // random effect for principal stratum model"
-    )
-    for (i in 1:S_re) {
-      parameters_output_lines <- c(
-        parameters_output_lines,
-        paste0("    matrix[", SZDG_max['S'], ", PS_RE_", i, "*NS_RE_", i, "] beta_S_RE_", i, ";"),
-        paste0("    real<lower=0> tau_S_RE_", i, "[", SZDG_max['S'], ", PS_RE_", i, "];")
-      )
-    }
-  }
-  if (Y_re > 0) {
-    parameters_output_lines <- c(
-      parameters_output_lines,
-      "    // random effect for outcome model"
-    )
-    for (i in 1:Y_re) {
-      parameters_output_lines <- c(
-        parameters_output_lines,
-        paste0("    matrix[", SZDG_max['G'], ", PG_RE_", i, "*NG_RE_", i, "] beta_G_RE_", i, ";"),
-        paste0("    real<lower=0> tau_G_RE_", i, "[", SZDG_max['G'], ", PG_RE_", i, "];")
-      )
-    }
-  }
-  for (parameter in parameter_list) {
-    parameters_output_lines <- c(
-      parameters_output_lines,
-      paste0("    real", ifelse(parameter$type == "positive", "<lower=0> ", " "), 
-             parameter$name, "[", SZDG_max['G'], "];")
-    )
-  }
-  parameters_output_lines <- c(
-    parameters_output_lines,
-    "}"
-  )
-  
-  ## transformed parameters ------------
-  transformed_parameters_output_lines <- c(
-    "transformed parameters {"
-  )
-  if (S_re > 0){
-    for (i in 1:S_re) {
-      transformed_parameters_output_lines <- c(
-        transformed_parameters_output_lines,
-        paste0("    matrix[NS_RE_", i, ", PS_RE_", i, "] M_beta_S_RE_", i, "[", SZDG_max['S'], "];")
-      )
-    }
-  }
-  if (Y_re > 0){
-    for (i in 1:Y_re) {
-      transformed_parameters_output_lines <- c(
-        transformed_parameters_output_lines,
-        paste0("    matrix[NG_RE_", i, ", PG_RE_", i, "] M_beta_G_RE_", i, "[", SZDG_max['G'], "];")
-      )
-    }
-  }
-  if (S_re > 0){
-    for (i in 1:S_re) {
-      transformed_parameters_output_lines <- c(
-        transformed_parameters_output_lines,
-        paste0("    for (i in 1:", SZDG_max['S'], "){")
-      )
-      for (j in 1:SZDG_max['S']){
-        transformed_parameters_output_lines <- c(
-          transformed_parameters_output_lines,
-          paste0("        M_beta_S_RE_", i, "[", j, "] = to_matrix(beta_S_RE_", i, "[", j, "], NS_RE_", i, 
-                 ", PS_RE_", i, ", 0);")
-        )
-      }
-      transformed_parameters_output_lines <- c(
-        transformed_parameters_output_lines,
-        "    }"
-      )
-    }
-  }
-  if (Y_re > 0){
-    for (i in 1:Y_re) {
-      transformed_parameters_output_lines <- c(
-        transformed_parameters_output_lines,
-        paste0("    for (i in 1:", SZDG_max['S'], "){")
-      )
-      for (j in 1:SZDG_max['G']){
-        transformed_parameters_output_lines <- c(
-          transformed_parameters_output_lines,
-          paste0("        M_beta_G_RE_", i, "[", j, "] = to_matrix(beta_G_RE_", i, "[", j, "], NG_RE_", i, 
-                 ", PG_RE_", i, ", 0);")
-        )
-      }
-      transformed_parameters_output_lines <- c(
-        transformed_parameters_output_lines,
-        "    }"
-      )
-    }
-  }
-  transformed_parameters_output_lines <- c(
-    transformed_parameters_output_lines,
-    "}"
-  )
-  
-  ## model --------------------------
-  model_output_lines <- c(
-    "model {",
-    "    // random effect"
-  )
-  if (S_re > 0) {
-    for (i in 1:S_re) {
-      model_output_lines <- c(
-        model_output_lines,
-        paste0("    for (i in 1:", SZDG_max['S'], ") {"),
-        paste0("        tau_S_RE_", i, "[i] ~ inv_gamma(1, 1);"),
-        paste0("        for (j in 1:PS_RE_", i, ") {"),
-        paste0("            M_beta_S_RE_", i, "[i][:, j] ~ normal(0, tau_S_RE_", i, "[i, j]);"),
-        "        }",
-        "    }"
-      )
-    }
-  }
-  if (Y_re > 0) {
-    for (i in 1:Y_re) {
-      model_output_lines <- c(
-        model_output_lines,
-        paste0("    for (i in 1:", SZDG_max['G'], ") {"),
-        paste0("        tau_G_RE_", i, "[i] ~ inv_gamma(1, 1);"),
-        paste0("        for (j in 1:PG_RE_", i, ") {"),
-        paste0("            M_beta_G_RE_", i, "[i][:, j] ~ normal(0, tau_G_RE_", i, "[i, j]);"),
-        "        }",
-        "    }"
-      )
-    }
-  }
-  model_output_lines <- c(
-    model_output_lines,
-    "    // prior"
-  )
-  for (prior in prior_list) {
-    type <- prior$type
-    func <- prior$func
-    params <- prior$param
-    params_str <- paste(params, collapse = ", ")
-    if (func == "flat") next
-    if (type == "intercept") {
-      model_output_lines <- c(
-        model_output_lines,
-        paste0("    beta_S[:, 1] ~ ", func, "(", params_str, ");"),
-        paste0("    beta_G[:, 1] ~ ", func, "(", params_str, ");")
-      )
-    } else if (type == "coefficient") {
-      model_output_lines <- c(
-        model_output_lines,
-        "    if (PS >= 2)",
-        paste0("        to_vector(beta_S[:, 2:PS]) ~ ", func, "(", params_str, ");"),
-        "    if (PG >= 2)",
-        paste0("        to_vector(beta_G[:, 2:PG]) ~ ", func, "(", params_str, ");")
-      )
-    } else {
-      found <- F
-      for (parameter in parameter_list)
-        if (type == parameter$name) {
-          found <- T
-          break
-        }
-      if (found) {
-        model_output_lines <- c(
-          model_output_lines,
-          paste0("    ", type, " ~ ", func, "(", params_str, ");")
-        )
-      }
-    }
-  }
-  model_output_lines <- c(
-    model_output_lines,
-    "    // model",
-    "    for (n in 1:N) {",
-    "        int length;",
-    paste0("        real log_prob[", SZDG_max['S'] + 1, "];"),
-    "        log_prob[1] = 0;",
-    paste0("        for (s in 2:", SZDG_max['S'] + 1, ") {"),
-    paste0(
-      "            log_prob[s] = XS[n] * beta_S[s-1]'",
-      ifelse(S_re == 0, "", paste(
-        sapply(1:S_re, function(i) paste0(" + XS_RE_", i, "[n] * beta_S_RE_", i, "[s-1]'")), collapse = '')),
-      ";"
-    ),
-    "        }"
-  )
-  b_else <- F
-  ZD_comb <- unique(PSobject$SZDG_table[, c("Z", "D")])
-  for (r in 1:nrow(ZD_comb)) {
-    z <- ZD_comb[r, "Z"]
-    d <- ZD_comb[r, "D"]
-    SG_table <- PSobject$SZDG_table[PSobject$SZDG_table[, "Z"] == z & PSobject$SZDG_table[, "D"] == d, , drop = F]
-    model_output_lines <- c(
-      model_output_lines,
-      paste0("        ", ifelse(b_else, "else ", ""), "if (Z[n] == ", z, " && D[n] == ", d, ")"),
-      paste0("            length = ", nrow(SG_table), ";")
-    )
-    b_else <- T
-  }
-  model_output_lines <- c(
-    model_output_lines,
-    "        {",
-    "            real log_l[length];"
-  )
-  b_else <- F
-  for (r in 1:nrow(ZD_comb)) {
-    z <- ZD_comb[r, "Z"]
-    d <- ZD_comb[r, "D"]
-    SG_table <- PSobject$SZDG_table[PSobject$SZDG_table[, "Z"] == z & PSobject$SZDG_table[, "D"] == d, , drop = F]
-    model_output_lines <- c(
-      model_output_lines,
-      paste0("            ", ifelse(b_else, "else ", ""), "if (Z[n] == ", z, " && D[n] == ", d, ") {"),
-      paste0("                // Z:", z, " D:", d, " S:", paste(SG_table[, "S"], collapse = "/"))
-    )
-    number <- 1
-    for (sg in 1:nrow(SG_table)) {
-      s <- SG_table[sg, 'S']
-      g <- SG_table[sg, 'G']
-      if (length(parameter_list) > 0) {
-        str_param <- paste0(
-          ", ",
-          paste(sapply(parameter_list, function(param) paste0(param$name, "[", g, "]")), collapse = ", "),
-          ifelse (Y_type == "survival", ", delta[n]", "")
-        )
-      }
-      else {
-        str_param <- ""
-      }
-      model_output_lines <- c(
-        model_output_lines,
-        paste0("                log_l[", number, "] = log_prob[", s + 1, "] + ", func_family, "(Y[n] | ",
-               func_link, "(", "XG[n] * beta_G[", g, "]'", 
-               ifelse(Y_re == 0, "", paste(
-                 sapply(
-                 1:Y_re, function(i) paste0(" + XG_RE_", i, "[n] * beta_G_RE_", i, "[", g, "]'")
-               ))),
-               ")", str_param, ");"
-        )
-      )
-      number <- number + 1
-    }
-    model_output_lines <- c(
-      model_output_lines,
-      "            }"
-    )
-    b_else <- T
-  }
-  model_output_lines <- c(
-    model_output_lines,
-    "            target += log_sum_exp(log_l) - log_sum_exp(log_prob);",
-    "        }",
-    "    }",
-    "}"
-  )
-  
-  ## generated_quantities
-  generated_quantities_output_lines <- c(
-    "generated quantities {",
-    paste0("    vector[", SZDG_max['S'] + 1, "] strata_prob; // the probability of being in each stratum"),
-    ifelse(Y_type == "survival",
-           paste0("    matrix[", SZDG_max['G'], ", T] mean_surv_prob; // mean survival probability\n",
-                  "    matrix[", SZDG_max['G'], ", T] mean_RACE; // mean restricted average causal effect"),
-           paste0("    vector[", SZDG_max['G'], "] mean_effect; // mean response")),
-    "    {",
-    paste0("        matrix[N, ", SZDG_max['S'] + 1, "] log_prob;")
-  )
-  if(Y_type == "survival"){
-    generated_quantities_output_lines <- c(
-      generated_quantities_output_lines,
-      paste0("        matrix[", SZDG_max['G'], ", T] numer_surv_prob;"),
-      paste0("        matrix[", SZDG_max['G'], ", T] numer_RACE;"),
-      paste0("        matrix[N, T] expected_surv_prob[", SZDG_max['G'], "];"),
-      paste0("        matrix[N, T] expected_RACE[", SZDG_max['G'], "];"),
-      "        for (i in 1:N)",
-      paste0("            for (j in 1:", SZDG_max['G'], ")"),
-      "                for (t in 1:T) {",
-      paste0("                    real mu = ", func_link, "(XG[i] * beta_G[j]'",
-             ifelse(Y_re == 0, "", 
-                    paste(sapply(1:Y_re, function(i) paste0(" + XG_RE_", i, "[i] * beta_G_RE_", i, "[j]'")))),
-             ");"
-      )
-    )
-    if (Y_family == "survival_Cox") {
-      generated_quantities_output_lines <- c(
-        generated_quantities_output_lines,
-        "                    expected_surv_prob[j][i,t] = exp(-exp(mu) * pow(time[t], exp(theta[j])));",
-        "                    expected_RACE[j][i,t] = exp(-theta[j] - mu * exp(-theta[j])) * tgamma(exp(-theta[j])) * gamma_p(exp(-theta[j]), exp(mu) * pow(time[t], exp(theta[j])));"
-      )
-    }
-    else if (Y_family == "survival_AFT") {
-      generated_quantities_output_lines <- c(
-        generated_quantities_output_lines,
-        "                    expected_surv_prob[j][i,t] = 1 - normal_cdf(log(time[t]), mu, sigma[j]);", 
-        "                    expected_RACE[j][i,t] = time[t] - normal_cdf(log(time[t]), mu, sigma[j]) + exp(mu + sigma[j] * sigma[j] / 2) * normal_cdf(log(time[t]), mu + sigma[j] * sigma[j], sigma[j]);"
-      )
-    }
-    generated_quantities_output_lines <- c(
-      generated_quantities_output_lines, "                }"
-    )
-  } else {
-    generated_quantities_output_lines <- c(
-      generated_quantities_output_lines,
-      paste0("        vector[", SZDG_max['G'], "] numer;"),
-      paste0('        matrix[N, ', SZDG_max['G'], "] expected_mean;"),
-      "        for (i in 1:N)",
-      paste0("            for (j in 1:", SZDG_max['G'], ")"),
-      paste0("                expected_mean[i, j] = ", func_link, "(XG[i] * beta_G[j]'", 
-             ifelse(Y_re == 0, "", 
-                    paste(sapply(1:Y_re, function(i) paste0(" + XG_RE_", i, "[i] * beta_G_RE_", i, "[j]'")))),
-             ");"
-      )
-    )
-  }
-  generated_quantities_output_lines <- c(
-    generated_quantities_output_lines,
-    "        log_prob[:, 1] = rep_vector(0, N);",
-    paste0("        log_prob[:, 2:", SZDG_max['S'] + 1, "] = XS * beta_S'",
-           ifelse(S_re == 0, "", 
-                  paste(sapply(1:S_re, function(i) paste0(" + XS_RE_", i, " * beta_S_RE_", i, "'")))),
-           ";"
-    ),
-    "        for (n in 1:N) {",
-    "            log_prob[n] -= log_sum_exp(log_prob[n]);",
-    "        }",
-    paste0("        for (s in 1:", SZDG_max['S'] + 1, ") strata_prob[s] = mean(exp(log_prob[:, s]));")
-  )
-  if (Y_type == "survival") {
-    generated_quantities_output_lines <- c(
-      generated_quantities_output_lines,
-      paste0("        for (g in 1:", SZDG_max['G'], ") {"),
-      "            for (t in 1:T) {",
-      "                numer_surv_prob[g, t] = mean(expected_surv_prob[g][:, t] .* exp(log_prob[:, S[g]]));",
-      "                numer_RACE[g, t] = mean(expected_RACE[g][:, t] .* exp(log_prob[:, S[g]]));",
-      "                mean_surv_prob[g, t] = numer_surv_prob[g, t] / strata_prob[S[g]];",
-      "                mean_RACE[g, t] = numer_RACE[g, t] / strata_prob[S[g]];",     
-      "            }",
-      "        }"
-    )
-  } else {
-    generated_quantities_output_lines <- c(
-      generated_quantities_output_lines,
-      paste0("        for (g in 1:", SZDG_max['G'], ") {"),
-      "            numer[g] = mean(expected_mean[:, g] .* exp(log_prob[:, S[g]]));",
-      "            mean_effect[g] = numer[g] / strata_prob[S[g]];",
-      "        }"
-    )
-  }
-  generated_quantities_output_lines <- c(
-    generated_quantities_output_lines,
-    "    }",
-    "}"
-  )
-  
-  comment_lines <- c(
-    "// Automatically generated by PStrata 0.0.4",
-    paste0("// at ", Sys.time(), " ", Sys.timezone())
-  )
-  
-  full_output <- c(
-    comment_lines, " ",
-    func_output_lines, " ",
-    stan_data_output_lines, " ",
-    transformed_data_output_lines, " ",
-    parameters_output_lines, " ",
-    transformed_parameters_output_lines, " ",
-    model_output_lines, " ",
-    generated_quantities_output_lines
-  )
-  
-  full_text <- paste0(full_output, collapse = "\n")
+
+  full_text <- paste0(blocks, collapse = "\n")
+
   if (!is.null(filename)) {
     if (!stringr::str_ends(filename, ".stan"))
       filename <- paste0(filename, ".stan")
     cat(full_text, file = filename)
   }
-  return (full_text)
+
+  full_text
+}
+
+# =============================================================================
+# Context builder
+# =============================================================================
+
+#' Read an inst/ config file, handling debug vs installed paths
+#' @noRd
+read_inst_file <- function(filename, debug) {
+  if (debug) {
+    return(readLines(file.path("inst", filename)))
+  }
+  pkg_path <- path.package("PStrata")
+  # Installed packages have files directly under pkg_path;
+
+  # devtools::load_all() keeps them under inst/
+  path <- file.path(pkg_path, filename)
+  if (!file.exists(path)) {
+    path <- file.path(pkg_path, "inst", filename)
+  }
+  readLines(path)
+}
+
+#' Parse family_info.txt to extract outcome type, Stan function, and extra params
+#' @noRd
+parse_family_info <- function(lines, Y_family) {
+  Y_type <- NULL
+  func_family <- NULL
+  parameter_list <- list()
+
+  for (line in lines) {
+    parts <- stringr::str_split(line, " +")[[1]]
+    if (parts[1] != Y_family) next
+
+    Y_type <- parts[2]
+    func_family <- parts[3]
+    n_params <- as.integer(parts[4])
+    if (n_params > 0) {
+      for (i in seq_len(n_params)) {
+        parameter_list[[i]] <- list(
+          name = parts[2 * i + 3],
+          type = parts[2 * i + 4]
+        )
+      }
+    }
+    break
+  }
+
+  list(Y_type = Y_type, func_family = func_family, parameter_list = parameter_list)
+}
+
+#' Parse link_info.txt to find the Stan inverse-link function name
+#' @noRd
+parse_link_info <- function(lines, Y_family, Y_link) {
+  for (line in lines) {
+    parts <- stringr::str_split(line, " +")[[1]]
+    if (parts[1] == Y_family && parts[2] == Y_link) return(parts[3])
+  }
+  NULL
+}
+
+#' Build the prior list from PSobject for Stan code generation
+#' @noRd
+build_prior_list <- function(PSobject) {
+  prior_names <- c("intercept", "coefficient", "sigma", "alpha", "lambda", "theta")
+  lapply(prior_names, function(name) {
+    prior_curr <- PSobject[[paste0("prior_", name)]]
+    list(
+      type  = name,
+      func  = prior_curr$name,
+      param = unlist(prior_curr$args)
+    )
+  })
+}
+
+#' Assemble all derived quantities needed for Stan code generation
+#' @noRd
+build_stan_context <- function(PSobject, debug) {
+  SZDG_max <- apply(PSobject$SZDG_table, 2, max)
+  Y_family <- PSobject$Y.family$family
+  Y_link   <- PSobject$Y.family$link
+
+  family_info <- parse_family_info(
+    read_inst_file("family_info.txt", debug), Y_family
+  )
+  func_link <- parse_link_info(
+    read_inst_file("link_info.txt", debug), Y_family, Y_link
+  )
+
+  list(
+    PSobject       = PSobject,
+    SZDG_max       = SZDG_max,
+    S_re           = length(PSobject$S.formula$random_eff_list),
+    Y_re           = length(PSobject$Y.formula$random_eff_list),
+    Y_family       = Y_family,
+    Y_link         = Y_link,
+    Y_type         = family_info$Y_type,
+    func_family    = family_info$func_family,
+    func_link      = func_link,
+    parameter_list = family_info$parameter_list,
+    prior_list     = build_prior_list(PSobject),
+    func_imp_lines = read_inst_file("function_implement.txt", debug)
+  )
+}
+
+# =============================================================================
+# Random effect line generators (shared across multiple blocks)
+# =============================================================================
+
+#' Generate Stan data declarations for random effects
+#' @param prefix "S" for stratum model, "G" for outcome model
+#' @param re_count Number of random effect groups
+#' @noRd
+stan_re_data_lines <- function(prefix, re_count) {
+  if (re_count == 0) return(character(0))
+  model_desc <- if (prefix == "S") "principal stratum" else "outcome"
+  lines <- paste0("    // random effect for ", model_desc, " model")
+  for (i in seq_len(re_count)) {
+    p <- paste0("P", prefix, "_RE_", i)
+    n <- paste0("N", prefix, "_RE_", i)
+    x <- paste0("X", prefix, "_RE_", i)
+    lines <- c(lines,
+      paste0("    int<lower=0> ", p, "; // number of random effect terms"),
+      paste0("    int<lower=0> ", n, "; // number of levels"),
+      paste0("    matrix[N, ", p, "*", n, "] ", x, "; // model matrix for random effect")
+    )
+  }
+  lines
+}
+
+#' Generate Stan parameter declarations for random effects
+#' @noRd
+stan_re_param_lines <- function(prefix, max_dim, re_count) {
+  if (re_count == 0) return(character(0))
+  model_desc <- if (prefix == "S") "principal stratum" else "outcome"
+  lines <- paste0("    // random effect for ", model_desc, " model")
+  for (i in seq_len(re_count)) {
+    lines <- c(lines,
+      paste0("    matrix[", max_dim, ", P", prefix, "_RE_", i,
+             "*N", prefix, "_RE_", i, "] beta_", prefix, "_RE_", i, ";"),
+      paste0("    real<lower=0> tau_", prefix, "_RE_", i,
+             "[", max_dim, ", P", prefix, "_RE_", i, "];")
+    )
+  }
+  lines
+}
+
+#' Generate transformed parameter declarations for random effects
+#' @noRd
+stan_re_transformed_decl <- function(prefix, max_dim, re_count) {
+  if (re_count == 0) return(character(0))
+  lines <- character(0)
+  for (i in seq_len(re_count)) {
+    lines <- c(lines,
+      paste0("    matrix[N", prefix, "_RE_", i, ", P", prefix, "_RE_", i,
+             "] M_beta_", prefix, "_RE_", i, "[", max_dim, "];")
+    )
+  }
+  lines
+}
+
+#' Generate transformed parameter body (reshape) for random effects
+#' @param prefix "S" or "G"
+#' @param re_count Number of RE groups
+#' @param loop_bound The Stan for-loop upper bound
+#' @param body_count Number of assignment lines to generate inside the loop
+#' @noRd
+stan_re_transformed_body <- function(prefix, re_count, loop_bound, body_count) {
+  if (re_count == 0) return(character(0))
+  lines <- character(0)
+  for (i in seq_len(re_count)) {
+    lines <- c(lines, paste0("    for (i in 1:", loop_bound, "){"))
+    for (j in seq_len(body_count)) {
+      lines <- c(lines,
+        paste0("        M_beta_", prefix, "_RE_", i, "[", j,
+               "] = to_matrix(beta_", prefix, "_RE_", i, "[", j,
+               "], N", prefix, "_RE_", i, ", P", prefix, "_RE_", i, ", 0);")
+      )
+    }
+    lines <- c(lines, "    }")
+  }
+  lines
+}
+
+#' Generate model-block priors for random effects
+#' @noRd
+stan_re_prior_lines <- function(prefix, max_dim, re_count) {
+  if (re_count == 0) return(character(0))
+  lines <- character(0)
+  for (i in seq_len(re_count)) {
+    lines <- c(lines,
+      paste0("    for (i in 1:", max_dim, ") {"),
+      paste0("        tau_", prefix, "_RE_", i, "[i] ~ inv_gamma(1, 1);"),
+      paste0("        for (j in 1:P", prefix, "_RE_", i, ") {"),
+      paste0("            M_beta_", prefix, "_RE_", i,
+             "[i][:, j] ~ normal(0, tau_", prefix, "_RE_", i, "[i, j]);"),
+      "        }",
+      "    }"
+    )
+  }
+  lines
+}
+
+#' Generate the RE linear predictor addition terms (e.g. " + XS_RE_1[n] * beta_S_RE_1[s-1]'")
+#' @noRd
+stan_re_linear_terms <- function(prefix, re_count, row_idx, coef_idx) {
+  if (re_count == 0) return("")
+  paste(vapply(seq_len(re_count), function(i) {
+    paste0(" + X", prefix, "_RE_", i, "[", row_idx, "] * beta_", prefix, "_RE_", i, "[", coef_idx, "]'")
+  }, character(1)), collapse = "")
+}
+
+#' Generate RE matrix linear terms (no row index, for generated quantities)
+#' @noRd
+stan_re_matrix_terms <- function(prefix, re_count) {
+  if (re_count == 0) return("")
+  paste(vapply(seq_len(re_count), function(i) {
+    paste0(" + X", prefix, "_RE_", i, " * beta_", prefix, "_RE_", i, "'")
+  }, character(1)), collapse = "")
+}
+
+# =============================================================================
+# Stan block generators
+# =============================================================================
+
+#' @noRd
+stan_comment_lines <- function() {
+  c(
+    "// Automatically generated by PStrata 0.0.4",
+    paste0("// at ", Sys.time(), " ", Sys.timezone())
+  )
+}
+
+#' @noRd
+stan_functions_block <- function(ctx) {
+  lines <- character(0)
+  aim <- FALSE
+  for (line in ctx$func_imp_lines) {
+    if (line == "<<<>>>") aim <- FALSE
+    if (!aim) {
+      parts <- stringr::str_split(line, " ")[[1]]
+      if (parts[1] == "<<<") {
+        if (parts[2] %in% c(ctx$func_family, ctx$func_link))
+          aim <- TRUE
+      }
+      next
+    }
+    lines <- c(lines, paste0("    ", line))
+  }
+  if (length(lines) > 0) c("functions {", lines, "}") else character(0)
+}
+
+#' @noRd
+stan_data_block <- function(ctx) {
+  mx <- ctx$SZDG_max
+  lines <- c(
+    "data {",
+    "    int<lower=0> N; // number of observations",
+    "    int<lower=0> PS; // number of predictors for principal stratum model",
+    "    int<lower=0> PG; // number of predictors for outcome model",
+    paste0("    int<lower=0, upper=", mx[2], "> Z[N]; // treatment arm"),
+    paste0("    int<lower=0, upper=", mx[3], "> D[N]; // post randomization confounding variable")
+  )
+
+  Y_lines <- switch(ctx$Y_type,
+    "real"     = "    real Y[N]; // real outcome",
+    "positive" = "    real<lower=0> Y[N]; // positive outcome",
+    "binary"   = "    int<lower=0, upper=1> Y[N]; // binary outcome",
+    "count"    = "    int<lower=0> Y[N]; // count outcome",
+    "survival" = c(
+      "    real<lower=0> Y[N]; // survival outcome",
+      "    int<lower=0, upper=1> delta[N]; // event indicator",
+      "    int<lower=0> T; // number of time points for evaluation",
+      "    real<lower=0> time[T]; // time points"
+    )
+  )
+
+  c(lines, Y_lines,
+    "    matrix[N, PS] XS; // model matrix for principal stratum model",
+    "    matrix[N, PG] XG; // model matrix for outcome model",
+    stan_re_data_lines("S", ctx$S_re),
+    stan_re_data_lines("G", ctx$Y_re),
+    "}"
+  )
+}
+
+#' @noRd
+stan_transformed_data_block <- function(ctx) {
+  mx <- ctx$SZDG_max
+  SG_table <- unique(ctx$PSobject$SZDG_table[, c("S", "G")])
+
+  lines <- c(
+    "transformed data {",
+    paste0("    int S[", mx[4], "];")
+  )
+  for (i in seq_len(nrow(SG_table))) {
+    lines <- c(lines,
+      paste0("   S[", SG_table[i, "G"], "] = ", SG_table[i, "S"] + 1, ";")
+    )
+  }
+  c(lines, "}")
+}
+
+#' @noRd
+stan_parameters_block <- function(ctx) {
+  mx <- ctx$SZDG_max
+  lines <- c(
+    "parameters {",
+    paste0("    matrix[", mx['S'], ", PS] beta_S; // coefficients for principal stratum model"),
+    paste0("    matrix[", mx['G'], ", PG] beta_G; // coefficients for outcome model"),
+    stan_re_param_lines("S", mx['S'], ctx$S_re),
+    stan_re_param_lines("G", mx['G'], ctx$Y_re)
+  )
+
+  for (param in ctx$parameter_list) {
+    constraint <- if (param$type == "positive") "<lower=0> " else " "
+    lines <- c(lines,
+      paste0("    real", constraint, param$name, "[", mx['G'], "];")
+    )
+  }
+
+  c(lines, "}")
+}
+
+#' @noRd
+stan_transformed_parameters_block <- function(ctx) {
+  mx <- ctx$SZDG_max
+  c(
+    "transformed parameters {",
+    stan_re_transformed_decl("S", mx['S'], ctx$S_re),
+    stan_re_transformed_decl("G", mx['G'], ctx$Y_re),
+    stan_re_transformed_body("S", ctx$S_re, mx['S'], mx['S']),
+    stan_re_transformed_body("G", ctx$Y_re, mx['S'], mx['G']),
+    "}"
+  )
+}
+
+#' @noRd
+stan_model_block <- function(ctx) {
+  mx <- ctx$SZDG_max
+  PSobject <- ctx$PSobject
+
+  lines <- c(
+    "model {",
+    "    // random effect",
+    stan_re_prior_lines("S", mx['S'], ctx$S_re),
+    stan_re_prior_lines("G", mx['G'], ctx$Y_re),
+    "    // prior",
+    stan_prior_lines(ctx),
+    "    // model",
+    stan_likelihood_lines(ctx)
+  )
+
+  c(lines, "}")
+}
+
+#' Generate prior statements for the model block
+#' @noRd
+stan_prior_lines <- function(ctx) {
+  lines <- character(0)
+  for (prior in ctx$prior_list) {
+    if (prior$func == "flat") next
+    params_str <- paste(prior$param, collapse = ", ")
+
+    if (prior$type == "intercept") {
+      lines <- c(lines,
+        paste0("    beta_S[:, 1] ~ ", prior$func, "(", params_str, ");"),
+        paste0("    beta_G[:, 1] ~ ", prior$func, "(", params_str, ");")
+      )
+    } else if (prior$type == "coefficient") {
+      lines <- c(lines,
+        "    if (PS >= 2)",
+        paste0("        to_vector(beta_S[:, 2:PS]) ~ ", prior$func, "(", params_str, ");"),
+        "    if (PG >= 2)",
+        paste0("        to_vector(beta_G[:, 2:PG]) ~ ", prior$func, "(", params_str, ");")
+      )
+    } else {
+      is_model_param <- any(vapply(ctx$parameter_list,
+        function(p) p$name == prior$type, logical(1)))
+      if (is_model_param) {
+        lines <- c(lines,
+          paste0("    ", prior$type, " ~ ", prior$func, "(", params_str, ");")
+        )
+      }
+    }
+  }
+  lines
+}
+
+#' Generate the main likelihood loop for the model block
+#' @noRd
+stan_likelihood_lines <- function(ctx) {
+  mx <- ctx$SZDG_max
+  PSobject <- ctx$PSobject
+  S_re_term <- stan_re_linear_terms("S", ctx$S_re, "n", "s-1")
+
+  lines <- c(
+    "    for (n in 1:N) {",
+    "        int length;",
+    paste0("        real log_prob[", mx['S'] + 1, "];"),
+    "        log_prob[1] = 0;",
+    paste0("        for (s in 2:", mx['S'] + 1, ") {"),
+    paste0("            log_prob[s] = XS[n] * beta_S[s-1]'", S_re_term, ";"),
+    "        }"
+  )
+
+  ZD_comb <- unique(PSobject$SZDG_table[, c("Z", "D")])
+
+  # length assignment block
+  b_else <- FALSE
+  for (r in seq_len(nrow(ZD_comb))) {
+    z <- ZD_comb[r, "Z"]; d <- ZD_comb[r, "D"]
+    n_groups <- sum(PSobject$SZDG_table[, "Z"] == z & PSobject$SZDG_table[, "D"] == d)
+    lines <- c(lines,
+      paste0("        ", if (b_else) "else ", "if (Z[n] == ", z, " && D[n] == ", d, ")"),
+      paste0("            length = ", n_groups, ";")
+    )
+    b_else <- TRUE
+  }
+
+  lines <- c(lines,
+    "        {",
+    "            real log_l[length];"
+  )
+
+  # likelihood computation block
+  b_else <- FALSE
+  for (r in seq_len(nrow(ZD_comb))) {
+    z <- ZD_comb[r, "Z"]; d <- ZD_comb[r, "D"]
+    SG_table <- PSobject$SZDG_table[
+      PSobject$SZDG_table[, "Z"] == z & PSobject$SZDG_table[, "D"] == d, , drop = FALSE
+    ]
+    lines <- c(lines,
+      paste0("            ", if (b_else) "else ", "if (Z[n] == ", z, " && D[n] == ", d, ") {"),
+      paste0("                // Z:", z, " D:", d, " S:", paste(SG_table[, "S"], collapse = "/"))
+    )
+
+    for (sg in seq_len(nrow(SG_table))) {
+      s <- SG_table[sg, "S"]
+      g <- SG_table[sg, "G"]
+      Y_re_term <- stan_re_linear_terms("G", ctx$Y_re, "n", g)
+
+      str_param <- ""
+      if (length(ctx$parameter_list) > 0) {
+        param_refs <- paste(vapply(ctx$parameter_list,
+          function(p) paste0(p$name, "[", g, "]"), character(1)), collapse = ", ")
+        str_param <- paste0(", ", param_refs,
+          if (ctx$Y_type == "survival") ", delta[n]" else "")
+      }
+
+      lines <- c(lines,
+        paste0("                log_l[", sg, "] = log_prob[", s + 1, "] + ",
+               ctx$func_family, "(Y[n] | ",
+               ctx$func_link, "(XG[n] * beta_G[", g, "]'", Y_re_term, ")",
+               str_param, ");")
+      )
+    }
+    lines <- c(lines, "            }")
+    b_else <- TRUE
+  }
+
+  c(lines,
+    "            target += log_sum_exp(log_l) - log_sum_exp(log_prob);",
+    "        }",
+    "    }"
+  )
+}
+
+# =============================================================================
+# Generated quantities block
+# =============================================================================
+
+#' @noRd
+stan_generated_quantities_block <- function(ctx) {
+  mx <- ctx$SZDG_max
+
+  if (ctx$Y_type == "survival") {
+    stan_gq_survival(ctx, mx)
+  } else {
+    stan_gq_ordinary(ctx, mx)
+  }
+}
+
+#' Generated quantities for non-survival outcomes
+#' @noRd
+stan_gq_ordinary <- function(ctx, mx) {
+  S_re_mat <- stan_re_matrix_terms("S", ctx$S_re)
+  Y_re_term_fn <- function(idx_var) stan_re_linear_terms("G", ctx$Y_re, "i", idx_var)
+
+  lines <- c(
+    "generated quantities {",
+    paste0("    vector[", mx['S'] + 1, "] strata_prob; // the probability of being in each stratum"),
+    paste0("    vector[", mx['G'], "] mean_effect; // mean response"),
+    "    {",
+    paste0("        matrix[N, ", mx['S'] + 1, "] log_prob;"),
+    paste0("        vector[", mx['G'], "] numer;"),
+    paste0("        matrix[N, ", mx['G'], "] expected_mean;"),
+    "        for (i in 1:N)",
+    paste0("            for (j in 1:", mx['G'], ")"),
+    paste0("                expected_mean[i, j] = ", ctx$func_link,
+           "(XG[i] * beta_G[j]'", Y_re_term_fn("j"), ");"),
+    "        log_prob[:, 1] = rep_vector(0, N);",
+    paste0("        log_prob[:, 2:", mx['S'] + 1, "] = XS * beta_S'", S_re_mat, ";"),
+    "        for (n in 1:N) {",
+    "            log_prob[n] -= log_sum_exp(log_prob[n]);",
+    "        }",
+    paste0("        for (s in 1:", mx['S'] + 1, ") strata_prob[s] = mean(exp(log_prob[:, s]));"),
+    paste0("        for (g in 1:", mx['G'], ") {"),
+    "            numer[g] = mean(expected_mean[:, g] .* exp(log_prob[:, S[g]]));",
+    "            mean_effect[g] = numer[g] / strata_prob[S[g]];",
+    "        }",
+    "    }",
+    "}"
+  )
+  lines
+}
+
+#' Generated quantities for survival outcomes
+#' @noRd
+stan_gq_survival <- function(ctx, mx) {
+  S_re_mat <- stan_re_matrix_terms("S", ctx$S_re)
+  Y_re_term_fn <- function(idx_var) stan_re_linear_terms("G", ctx$Y_re, "i", idx_var)
+
+  lines <- c(
+    "generated quantities {",
+    paste0("    vector[", mx['S'] + 1, "] strata_prob; // the probability of being in each stratum"),
+    paste0("    matrix[", mx['G'], ", T] mean_surv_prob; // mean survival probability"),
+    paste0("    matrix[", mx['G'], ", T] mean_RACE; // mean restricted average causal effect"),
+    "    {",
+    paste0("        matrix[N, ", mx['S'] + 1, "] log_prob;"),
+    paste0("        matrix[", mx['G'], ", T] numer_surv_prob;"),
+    paste0("        matrix[", mx['G'], ", T] numer_RACE;"),
+    paste0("        matrix[N, T] expected_surv_prob[", mx['G'], "];"),
+    paste0("        matrix[N, T] expected_RACE[", mx['G'], "];"),
+    "        for (i in 1:N)",
+    paste0("            for (j in 1:", mx['G'], ")"),
+    "                for (t in 1:T) {",
+    paste0("                    real mu = ", ctx$func_link,
+           "(XG[i] * beta_G[j]'", Y_re_term_fn("j"), ");")
+  )
+
+  if (ctx$Y_family == "survival_Cox") {
+    lines <- c(lines,
+      "                    expected_surv_prob[j][i,t] = exp(-exp(mu) * pow(time[t], exp(theta[j])));",
+      "                    expected_RACE[j][i,t] = exp(-theta[j] - mu * exp(-theta[j])) * tgamma(exp(-theta[j])) * gamma_p(exp(-theta[j]), exp(mu) * pow(time[t], exp(theta[j])));"
+    )
+  } else if (ctx$Y_family == "survival_AFT") {
+    lines <- c(lines,
+      "                    expected_surv_prob[j][i,t] = 1 - normal_cdf(log(time[t]), mu, sigma[j]);",
+      "                    expected_RACE[j][i,t] = time[t] - normal_cdf(log(time[t]), mu, sigma[j]) + exp(mu + sigma[j] * sigma[j] / 2) * normal_cdf(log(time[t]), mu + sigma[j] * sigma[j], sigma[j]);"
+    )
+  }
+
+  c(lines,
+    "                }",
+    "        log_prob[:, 1] = rep_vector(0, N);",
+    paste0("        log_prob[:, 2:", mx['S'] + 1, "] = XS * beta_S'", S_re_mat, ";"),
+    "        for (n in 1:N) {",
+    "            log_prob[n] -= log_sum_exp(log_prob[n]);",
+    "        }",
+    paste0("        for (s in 1:", mx['S'] + 1, ") strata_prob[s] = mean(exp(log_prob[:, s]));"),
+    paste0("        for (g in 1:", mx['G'], ") {"),
+    "            for (t in 1:T) {",
+    "                numer_surv_prob[g, t] = mean(expected_surv_prob[g][:, t] .* exp(log_prob[:, S[g]]));",
+    "                numer_RACE[g, t] = mean(expected_RACE[g][:, t] .* exp(log_prob[:, S[g]]));",
+    "                mean_surv_prob[g, t] = numer_surv_prob[g, t] / strata_prob[S[g]];",
+    "                mean_RACE[g, t] = numer_RACE[g, t] / strata_prob[S[g]];",
+    "            }",
+    "        }",
+    "    }",
+    "}"
+  )
 }

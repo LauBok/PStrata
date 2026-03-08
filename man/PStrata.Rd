@@ -24,7 +24,7 @@ PStrata(
 )
 }
 \arguments{
-\item{PSobject}{an object of class \code{\link{PSObject}}. 
+\item{PSobject}{an object of class \code{\link{PSObject}}.
 If left blank, the object is constructed using the following arguments.
 See \code{\link{PSObject}} for details.}
 
@@ -38,9 +38,9 @@ family of the model for the response and the link function. See the documentatio
 for \code{\link{glm}} for details on how such model fitting takes place.
 Supported families and corresponding link functions are presented in 'Details' below.}
 
-\item{data}{(optional) a data frame object. This is required when either 
+\item{data}{(optional) a data frame object. This is required when either
 \code{S.formula} or \code{Y.formula} is a \code{formula} object, to coerce
-it into a \code{PSFormula} object. When this happens, the data frame should 
+it into a \code{PSFormula} object. When this happens, the data frame should
 contain all of the variables with names given in \code{S.formula} or \code{Y.formula}.}
 
 \item{strata, ER}{arguments to define the principal strata. See \code{\link{PStrataInfo}} for details.
@@ -50,7 +50,7 @@ and \code{ER} will be ignored.}
 
 \item{prior_intercept, prior_coefficient, prior_sigma, prior_alpha, prior_lambda, prior_theta}{prior distribution for corresponding parameters in the model.}
 
-\item{survival.time.points}{a vector of time points at which the estimated survival probability is evaluated 
+\item{survival.time.points}{a vector of time points at which the estimated survival probability is evaluated
 (only used when the type of outcome is survival), or an integer specifying the number of time points to be
 chosen. By default, the time points are chosen with equal distance from 0 to the 90\% quantile of the observed
 outcome.}
@@ -61,8 +61,8 @@ outcome.}
 \item{...}{additional parameters to be passed into \code{\link{PSSample}}.}
 }
 \value{
-An object of class \code{PStrata} or \code{PStrata_survival}, 
-which is a list containing 
+An object of class \code{PStrata} or \code{PStrata_survival},
+which is a list containing
 \item{PSobject}{An object of \code{PSObject}.}
 \item{post_samples}{An object of class \code{rstan::stanfit} returned by \pkg{Stan}.}
 }

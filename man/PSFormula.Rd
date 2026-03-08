@@ -13,7 +13,7 @@ a symbolic description of the model to be fitted. The details of model specifica
 \item{data}{a data frame containing the variables named in \code{formula}.}
 }
 \value{
-\code{PSFormula} returns an object of class \code{PSFormula}, 
+\code{PSFormula} returns an object of class \code{PSFormula},
 which is a \code{list} containing for following components.
 \describe{
  \item{\code{full_formula}}{input formula as is}
@@ -25,7 +25,7 @@ which is a \code{list} containing for following components.
  \item{\code{fixed_eff_names}}{character vector with names of all variables included as fixed effects}
  \item{\code{fixed_eff_count}}{integer indicating the number of variables (factors are converted to and counted as dummy variables)}
  \item{\code{fixed_eff_matrix}}{fixed-effect design matrix}
- \item{\code{random_eff_list}}{a list containing information for each random effect. 
+ \item{\code{random_eff_list}}{a list containing information for each random effect.
  Such information is a list with the corresponding design matrix, the term names and the factor levels.}
 }
 }
@@ -52,11 +52,11 @@ For the outcome model, the \code{formula} argument accepts formulas of the simil
 \code{response [+ observed] ~ terms}
 
 The \code{response} variable refers to the name of the outcome variable.
-The \code{terms} part includes all of the predictors used for the outcome model. 
+The \code{terms} part includes all of the predictors used for the outcome model.
 The \code{observed} variable shall not be used for ordinary response.
 When the true response is subject to right censoring (also called survival outcome in relevant literature),
 the \code{response} variable should refer to the observed or censored response, and the \code{observed} variable should
-be an indicator of whether the true response is observed. 
+be an indicator of whether the true response is observed.
 For example, suppose the true time for an event is \eqn{T} and the time of censoring is \eqn{C},
 Then, the \code{response} variable should refer to \eqn{\min(T, C)}, the actual time of the event or censoring, whichever comes earlier,
 and the indicator \code{observed} is 1 if \eqn{T < C} and 0 otherwise.
@@ -65,7 +65,7 @@ The \code{terms} specified in the principal stratum model and the outcome model 
 }
 
 \subsection{Multiple post-randomization confounding variables}{
-If multiple post-randomization confounding variables exist, one can specify all of them using 
+If multiple post-randomization confounding variables exist, one can specify all of them using
 the following syntax:
 
 \code{treatment + postrand_1 + postrand_2 + ... + postrand_n ~ terms}
@@ -79,18 +79,18 @@ in specifying other parameters, such as \code{strata} and \code{ER} (see \code{\
 
 \subsection{Non-linear transformation of the predictors}{
 The syntax for the predictors follow the conventions as used in \code{link{formula}}.
-The part \code{terms} consists of a series of terms concatenated by \code{+}, 
+The part \code{terms} consists of a series of terms concatenated by \code{+},
 each term being the name of a variable, or the interaction of several variables separated by \code{:}.
 
 Apart from \code{+} and \code{:}, a number of other operators are also useful.
-The \code{*} operator is a short-hand for factor crossing: 
+The \code{*} operator is a short-hand for factor crossing:
 \code{a*b} is interpreted as \code{a + b + a:b}.
 The \code{^} operator means factor crossing to a specific degree. For example,
 \code{(a + b + c)^2} is interpreted as \code{(a + b + c) * (a + b + c)},
 which is identical to \code{a + b + c + a:b + a:c + b:c}.
 The \code{-} operator removes specified terms, so that \code{(a + b + c)^2 - a:b} is
 identical to \code{a + b + c + a:c + b:c}.
-The \code{-} operator can be also used to remove the intercept term, such as 
+The \code{-} operator can be also used to remove the intercept term, such as
 \code{x - 1}. One can also use \code{x + 0} to remove the intercept term.
 
 Arithmetic expressions such as \code{a + log(b)} are also legal.
@@ -100,14 +100,14 @@ For example, in \code{x + I(y + z)}, the term \code{y + z} is interpreted as the
 }
 
 \subsection{Group level random effect}{
-When effects assumed to vary across grouping variables are considered, one can 
+When effects assumed to vary across grouping variables are considered, one can
 specify such effects by adding terms in the form of \code{gterms | group}, where
 \code{group} refers to the group indicator (usually a \code{factor}), and
-\code{gterms} specifies the terms whose coefficients are group-specific, drawn 
-from a population normal distribution. 
+\code{gterms} specifies the terms whose coefficients are group-specific, drawn
+from a population normal distribution.
 
 The most common situation for group level random effect is to include group-specific
-intercepts to account for unmeasured confounding. 
+intercepts to account for unmeasured confounding.
 For example, \code{x + y + (1 | g)} specifies a model with population predictors
 \code{x} and \code{y}, as well as random intercept for each level of \code{g}.
 
@@ -117,7 +117,7 @@ However, structures other than simple random intercepts and slopes may lead to u
 }
 \examples{
 df <- data.frame(
-  X = 1:10, 
+  X = 1:10,
   Z = c(0,0,0,0,0,1,1,1,1,1),
   D = c(0,0,0,1,1,1,0,0,1,1),
   R = c(1,1,1,1,2,2,2,3,3,3)

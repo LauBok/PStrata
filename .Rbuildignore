@@ -1,5 +1,8 @@
-PStrata3.0.Rproj
-.gitignore
-.DS_Store
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^\.gitignore$
+^\.DS_Store$
+^\.claude$
+^CLAUDE\.md$
+^R_backup$
+^.*conflicted copy.*$

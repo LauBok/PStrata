@@ -31,9 +31,9 @@ family of the model for the response and the link function. See the documentatio
 for \code{\link{glm}} for details on how such model fitting takes place.
 Supported families and corresponding link functions are presented in 'Details' below.}
 
-\item{data}{(optional) a data frame object. This is required when either 
+\item{data}{(optional) a data frame object. This is required when either
 \code{S.formula} or \code{Y.formula} is a \code{formula} object, to coerce
-it into a \code{PSFormula} object. When this happens, the data frame should 
+it into a \code{PSFormula} object. When this happens, the data frame should
 contain all of the variables with names given in \code{S.formula} or \code{Y.formula}.}
 
 \item{strata, ER}{arguments to define the principal strata. See \code{\link{PStrataInfo}} for details.
@@ -43,7 +43,7 @@ and \code{ER} will be ignored.}
 
 \item{prior_intercept, prior_coefficient, prior_sigma, prior_alpha, prior_lambda, prior_theta}{prior distribution for corresponding parameters in the model.}
 
-\item{survival.time.points}{a vector of time points at which the estimated survival probability is evaluated 
+\item{survival.time.points}{a vector of time points at which the estimated survival probability is evaluated
 (only used when the type of outcome is survival), or an integer specifying the number of time points to be
 chosen. By default, the time points are chosen with equal distance from 0 to the 90\% quantile of the observed
 outcome.}
@@ -60,13 +60,13 @@ A list, containing important information describing the principal stratification
 \item{Z_names}{A character vector. The names of the levels of the treatment.}
 }
 \description{
-Create an object containing essential information to create the Stan file and 
+Create an object containing essential information to create the Stan file and
 data for Stan to draw posterior samples. Such information includes the specified
 model for principal stratum and outcome, the type of outcome, assumptions,
 and prior specification, etc.
 }
 \details{
-The supported \code{family} objects include two types: native families for ordinary outcome and 
+The supported \code{family} objects include two types: native families for ordinary outcome and
 \code{survival} family for survival outcome.
 
 For ordinary outcome, the below families and links are supported. See \code{\link{family}} for more details.
@@ -76,27 +76,27 @@ For ordinary outcome, the below families and links are supported. See \code{\lin
  \code{gaussian} \tab \code{identity}, \code{log}, \code{inverse} \cr
  \code{Gamma} \tab \code{inverse}, \code{identity}, \code{log} \cr
  \code{poisson} \tab \code{log}, \code{identity}, \code{log} \cr
- \code{inverse.gamma} \tab \code{1/mu^2}, \code{inverse}, \code{identity}, \code{log} 
+ \code{inverse.gamma} \tab \code{1/mu^2}, \code{inverse}, \code{identity}, \code{log}
 }
 The \code{quasi} family is not supported for the current version of the package.
 
-For survival outcome, the \code{family} object is created by 
+For survival outcome, the \code{family} object is created by
 \code{survival(method = "Cox", link = "identity")}, where \code{method} can be
-either \code{"Cox"} for Weibull-Cox model or \code{"AFT"} for accelerated 
+either \code{"Cox"} for Weibull-Cox model or \code{"AFT"} for accelerated
 failure time model. See \code{\link{survival}} for more details. For the current
 version, only \code{"identity"} is used as the link function.
 
 The \code{gaussian} family and the \code{survival} family with \code{method = "AFT"}
-introduce an additional parameter \code{sigma} for the standard deviation, whose 
+introduce an additional parameter \code{sigma} for the standard deviation, whose
 prior distribution is specified by \code{prior_sigma}. Similarly, \code{prior_alpha}
-specifies the prior distribution of \code{alpha} for \code{Gamma} family, 
-\code{prior_lambda} specifies the prior distribution of \code{theta} for \code{inverse.gaussian} family, 
+specifies the prior distribution of \code{alpha} for \code{Gamma} family,
+\code{prior_lambda} specifies the prior distribution of \code{theta} for \code{inverse.gaussian} family,
 and \code{prior_theta}
 specifies the prior distribution of \code{theta} for \code{survival} family with \code{method = "Cox"}.
 
 The models for principal stratum \code{S.formula} and response \code{Y.formula}
 also involve a linear combination of terms, where the prior distribution of
-the intercept and coefficients are specified by \code{prior_intercept} and 
+the intercept and coefficients are specified by \code{prior_intercept} and
 \code{prior_coefficient} respectively.
 }
 \examples{

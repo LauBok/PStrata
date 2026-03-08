@@ -1,9 +1,9 @@
 #' Prior functions
-#' 
+#'
 #' Define prior functions used in \code{PStrata}.
-#' 
+#'
 #' @param mu,sigma,df,alpha,beta parameters for the prior distribution
-#' 
+#'
 #' @return A list, including the following items.
 #' \describe{
 #' \item{name}{name of the distribution}
@@ -11,163 +11,95 @@
 #' \item{args}{a named list of all the input parameters}
 #' \item{call}{a function call object of the prior distribution on the parameters}
 #' }
-#' 
+#'
 #' @name prior
 #' @rdname prior
 NULL
 
+#' Construct a prior distribution object (internal factory)
+#' @param name Stan distribution name
+#' @param type "real" or "positive"
+#' @param ... Named arguments in Stan argument order
+#' @return A prior list
+#' @noRd
+make_prior <- function(name, type, ...) {
+  args <- list(...)
+  call_obj <- if (name == "flat") {
+    NULL
+  } else {
+    as.call(c(list(as.name(name)), unname(args)))
+  }
+  list(name = name, type = type, args = args, call = call_obj)
+}
+
 #' @rdname prior
 #' @export
 prior_flat <- function() {
-  return (
-    list(
-      name = "flat",
-      type = "real",
-      args = list(),
-      call = NULL
-    )
-  )
+  make_prior("flat", "real")
 }
 
 #' @rdname prior
 #' @export
-prior_normal <- function(mu = 0, sigma = 1){
-  return (
-    list(
-      name = "normal",
-      type = "real", 
-      args = list(mu = mu, sigma = sigma),
-      call = as.call(list(quote(normal), mu, sigma))
-    )
-  )
+prior_normal <- function(mu = 0, sigma = 1) {
+  make_prior("normal", "real", mu = mu, sigma = sigma)
 }
 
 #' @rdname prior
 #' @export
-prior_t <- function(mu = 0, sigma = 1, df = 1){
-  return (
-    list(
-      name = "t",
-      type = "real", 
-      args = list(mu = mu, sigma = sigma, df = df),
-      call = as.call(list(quote(t), df, mu, sigma))
-    )
-  )
+prior_t <- function(mu = 0, sigma = 1, df = 1) {
+  make_prior("t", "real", df = df, mu = mu, sigma = sigma)
 }
 
 #' @rdname prior
 #' @export
-prior_cauchy <- function(mu = 0, sigma = 1){
-  return (
-    list(
-      name = "cauchy",
-      type = "real", 
-      args = list(mu = mu, sigma = sigma),
-      call = as.call(list(quote(cauchy), mu, sigma))
-    )
-  )
+prior_cauchy <- function(mu = 0, sigma = 1) {
+  make_prior("cauchy", "real", mu = mu, sigma = sigma)
 }
 
 #' @rdname prior
 #' @export
 prior_lasso <- function(mu = 0, sigma = 1) {
-  return (
-    list(
-      name = "double_exponential",
-      type = "real", 
-      args = list(mu = mu, sigma = sigma),
-      call = as.call(list(quote(double_exponential), mu, sigma))
-    )
-  )
+  make_prior("double_exponential", "real", mu = mu, sigma = sigma)
 }
 
 #' @rdname prior
 #' @export
 prior_logistic <- function(mu = 0, sigma = 1) {
-  return (
-    list(
-      name = "logistic",
-      type = "real", 
-      args = list(mu = mu, sigma = sigma),
-      call = as.call(list(quote(logistic), mu, sigma))
-    )
-  )
+  make_prior("logistic", "real", mu = mu, sigma = sigma)
 }
 
 #' @rdname prior
 #' @export
 prior_chisq <- function(df = 1) {
-  return (
-    list(
-      name = "chi_square",
-      type = "positive", 
-      args = list(df = df),
-      call = as.call(list(quote(chi_square), df))
-    )
-  )
+  make_prior("chi_square", "positive", df = df)
 }
 
 #' @rdname prior
 #' @export
 prior_inv_chisq <- function(df = 1) {
-  return (
-    list(
-      name = "inv_chi_square",
-      type = "positive", 
-      args = list(df = df),
-      call = as.call(list(quote(inv_chi_square), df))
-    )
-  )
+  make_prior("inv_chi_square", "positive", df = df)
 }
 
 #' @rdname prior
 #' @export
 prior_exponential <- function(beta = 1) {
-  return (
-    list(
-      name = "exponential",
-      type = "positive", 
-      args = list(beta = beta),
-      call = as.call(list(quote(exponential), beta))
-    )
-  )
+  make_prior("exponential", "positive", beta = beta)
 }
 
 #' @rdname prior
 #' @export
 prior_gamma <- function(alpha = 1, beta = 1) {
-  return (
-    list(
-      name = "gamma",
-      type = "positive", 
-      args = list(alpha = alpha, beta = beta),
-      call = as.call(list(quote(gamma), alpha, beta))
-    )
-  )
+  make_prior("gamma", "positive", alpha = alpha, beta = beta)
 }
 
 #' @rdname prior
 #' @export
 prior_inv_gamma <- function(alpha = 1, beta = 1) {
-  return (
-    list(
-      name = "inv_gamma",
-      type = "positive", 
-      args = list(alpha = alpha, beta = beta),
-      call = as.call(list(quote(inv_gamma), alpha, beta))
-    )
-  )
+  make_prior("inv_gamma", "positive", alpha = alpha, beta = beta)
 }
 
 #' @rdname prior
 #' @export
 prior_weibull <- function(alpha = 1, sigma = 1) {
-  return (
-    list(
-      name = "weibull",
-      type = "positive", 
-      args = list(alpha = alpha, sigma = sigma),
-      call = as.call(list(quote(weibull), alpha, sigma))
-    )
-  )
+  make_prior("weibull", "positive", alpha = alpha, sigma = sigma)
 }

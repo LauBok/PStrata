@@ -4,7 +4,7 @@
 \alias{survival}
 \title{The family function for survival data}
 \usage{
-survival(method = "Cox", link = "identity")
+survival(method = c("Cox", "AFT"), link = "identity")
 }
 \arguments{
 \item{method}{the parametric method used for survival data. Can be Cox or AFT.}
