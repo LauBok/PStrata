@@ -80,7 +80,7 @@ PSobj <- PSObject(
   strata = c(n = "00*", c = "01", a = "11*")
 )
 
-\donttest{PStrata(PSobj, cores = 2, chains = 2, iter = 200)}
+\dontrun{PStrata(PSobj, cores = 2, chains = 2, iter = 200)}
 
 # Another example for survival data
 PSobj <- PSObject(
@@ -91,6 +91,6 @@ PSobj <- PSObject(
   strata = c(`never-taker` = "00*", complier = "01", `always-taker` = "11*")
 )
 
-\donttest{PStrata(PSobj, cores = 2, chains = 2, iter = 200)}
+\dontrun{PStrata(PSobj, cores = 2, chains = 2, iter = 200)}
 
 }
