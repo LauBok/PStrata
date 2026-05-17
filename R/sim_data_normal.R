@@ -25,4 +25,8 @@
 #'   \item{D}{Actual treatment arm: 0 = control, 1 = treatment}
 #'   \item{Y}{Outcome}
 #' }
+#' @examples
+#' data(sim_data_normal)
+#' head(sim_data_normal)
+#' table(sim_data_normal$D, sim_data_normal$Z)
 "sim_data_normal"

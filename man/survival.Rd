@@ -2,7 +2,7 @@
 % Please edit documentation in R/survival.R
 \name{survival}
 \alias{survival}
-\title{The family function for survival data}
+\title{Family Function for Survival Data}
 \usage{
 survival(method = c("Cox", "AFT"), link = "identity")
 }
@@ -16,4 +16,8 @@ A \code{family} object
 }
 \description{
 Construct a family object for survival data
+}
+\examples{
+survival("Cox")
+survival("AFT")
 }

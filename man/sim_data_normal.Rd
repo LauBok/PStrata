@@ -35,4 +35,9 @@ with 0.5 probability for either arm. The outcome \eqn{Y} is given by the followi
 The exclusion restriction assumption holds for never takers and always takers in this
 generated dataset.
 }
+\examples{
+data(sim_data_normal)
+head(sim_data_normal)
+table(sim_data_normal$D, sim_data_normal$Z)
+}
 \keyword{datasets}

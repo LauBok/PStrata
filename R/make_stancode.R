@@ -1,17 +1,34 @@
-#' \bold{Stan} Code for \pkg{PStrata} Models
+#' Stan Code for PStrata Models
 #'
-#' Generate the \bold{Stan} code corresponding to the model,
-#' which is read by \bold{Stan} to do sampling.
+#' Generate the Stan code corresponding to the model.
+#' This is called internally by \code{\link{fit}}; use
+#' \code{\link{stancode.PStrataFit}} to retrieve the code
+#' from a fitted model.
 #'
-#' @param PSobject an object of class \code{PSobject}
-#' @param filename (optional) string. If not \code{NULL}, the stan file will be saved via
-#' \code{\link{cat}} in a text file named after the string supplied.
-#' @param debug only for testing in development mode. Will be removed in future release.
+#' @param object An internal model specification object.
+#' @param filename (optional) string. If not \code{NULL}, the
+#'   Stan file is saved to this path.
+#' @param debug only for development/testing use.
 #'
-#' @return A string, which can be printed on screen using \code{\link{cat}}.
+#' @return A string containing the Stan program.
+#'
+#' @examples
+#' \donttest{
+#' data(sim_data_normal)
+#' model <- PStrataModel(
+#'   S.formula = Z + D ~ 1,
+#'   Y.formula = Y ~ 1,
+#'   Y.family  = gaussian(),
+#'   strata    = c(n = "00", c = "01", a = "11"),
+#'   ER        = c("n", "a")
+#' )
+#' ps_fit <- fit(model, data = sim_data_normal, chains = 2, iter = 500)
+#' cat(ps_fit$stancode)
+#' }
 #'
 #' @export
-make_stancode <- function(PSobject, filename = NULL, debug = FALSE) {
+make_stancode <- function(object, filename = NULL, debug = FALSE) {
+  PSobject <- if (inherits(object, "PStrata")) object$.design else object
   ctx <- build_stan_context(PSobject, debug)
 
   blocks <- c(
@@ -47,21 +64,29 @@ make_stancode <- function(PSobject, filename = NULL, debug = FALSE) {
 # Context builder
 # =============================================================================
 
-#' Read an inst/ config file, handling debug vs installed paths
+#' Retrieve an inst/ config file as character lines
+#'
+#' Uses internal package data (R/sysdata.rda) when available.
+#' Falls back to reading from inst/ for development/debug use.
 #' @noRd
 read_inst_file <- function(filename, debug) {
-  if (debug) {
-    return(readLines(file.path("inst", filename)))
+  if (!debug) {
+    varname <- paste0(".", gsub("\\.txt$", "", filename), "_lines")
+    val <- tryCatch(get(varname, envir = asNamespace("PStrata")),
+                    error = function(e) NULL)
+    if (!is.null(val)) return(val)
   }
-  pkg_path <- path.package("PStrata")
-  # Installed packages have files directly under pkg_path;
-
-  # devtools::load_all() keeps them under inst/
-  path <- file.path(pkg_path, filename)
-  if (!file.exists(path)) {
-    path <- file.path(pkg_path, "inst", filename)
+  # Fallback: read from file (debug mode or sysdata not yet built)
+  candidates <- if (debug) {
+    c(file.path("inst", filename), file.path("PStrata", "inst", filename))
+  } else {
+    pkg_path <- path.package("PStrata")
+    c(file.path(pkg_path, filename), file.path(pkg_path, "inst", filename))
   }
-  readLines(path)
+  for (path in candidates) {
+    if (file.exists(path)) return(readLines(path))
+  }
+  stop("Cannot find config file: ", filename)
 }
 
 #' Parse family_info.txt to extract outcome type, Stan function, and extra params
@@ -116,6 +141,32 @@ build_prior_list <- function(PSobject) {
   })
 }
 
+#' Detect whether new Stan array syntax is needed (Stan >= 2.33)
+#' @noRd
+use_new_stan_array_syntax <- function() {
+  tryCatch(
+    utils::compareVersion(rstan::stan_version(), "2.33.0") >= 0,
+    error = function(e) FALSE
+  )
+}
+
+#' Generate a Stan array declaration in the correct syntax for the installed Stan version
+#' @param new_syntax logical; TRUE for new syntax (array[dims] type name), FALSE for old (type name[dims])
+#' @param indent character; leading whitespace
+#' @param dims character; dimension expression (e.g. "N", "mx['G']")
+#' @param base_type character; the type (e.g. "int<lower=0, upper=1>", "matrix[N, T]")
+#' @param varname character; the variable name
+#' @param comment character; optional trailing comment
+#' @noRd
+stan_array_decl <- function(new_syntax, indent, dims, base_type, varname, comment = "") {
+  if (new_syntax) {
+    decl <- paste0(indent, "array[", dims, "] ", base_type, " ", varname, ";")
+  } else {
+    decl <- paste0(indent, base_type, " ", varname, "[", dims, "];")
+  }
+  if (nzchar(comment)) paste0(decl, " ", comment) else decl
+}
+
 #' Assemble all derived quantities needed for Stan code generation
 #' @noRd
 build_stan_context <- function(PSobject, debug) {
@@ -142,7 +193,8 @@ build_stan_context <- function(PSobject, debug) {
     func_link      = func_link,
     parameter_list = family_info$parameter_list,
     prior_list     = build_prior_list(PSobject),
-    func_imp_lines = read_inst_file("function_implement.txt", debug)
+    func_imp_lines = read_inst_file("function_implement.txt", debug),
+    new_syntax     = use_new_stan_array_syntax()
   )
 }
 
@@ -173,7 +225,7 @@ stan_re_data_lines <- function(prefix, re_count) {
 
 #' Generate Stan parameter declarations for random effects
 #' @noRd
-stan_re_param_lines <- function(prefix, max_dim, re_count) {
+stan_re_param_lines <- function(prefix, max_dim, re_count, new_syntax) {
   if (re_count == 0) return(character(0))
   model_desc <- if (prefix == "S") "principal stratum" else "outcome"
   lines <- paste0("    // random effect for ", model_desc, " model")
@@ -181,8 +233,10 @@ stan_re_param_lines <- function(prefix, max_dim, re_count) {
     lines <- c(lines,
       paste0("    matrix[", max_dim, ", P", prefix, "_RE_", i,
              "*N", prefix, "_RE_", i, "] beta_", prefix, "_RE_", i, ";"),
-      paste0("    real<lower=0> tau_", prefix, "_RE_", i,
-             "[", max_dim, ", P", prefix, "_RE_", i, "];")
+      stan_array_decl(new_syntax, "    ",
+        paste0(max_dim, ", P", prefix, "_RE_", i),
+        "real<lower=0>",
+        paste0("tau_", prefix, "_RE_", i))
     )
   }
   lines
@@ -190,13 +244,14 @@ stan_re_param_lines <- function(prefix, max_dim, re_count) {
 
 #' Generate transformed parameter declarations for random effects
 #' @noRd
-stan_re_transformed_decl <- function(prefix, max_dim, re_count) {
+stan_re_transformed_decl <- function(prefix, max_dim, re_count, new_syntax) {
   if (re_count == 0) return(character(0))
   lines <- character(0)
   for (i in seq_len(re_count)) {
     lines <- c(lines,
-      paste0("    matrix[N", prefix, "_RE_", i, ", P", prefix, "_RE_", i,
-             "] M_beta_", prefix, "_RE_", i, "[", max_dim, "];")
+      stan_array_decl(new_syntax, "    ", max_dim,
+        paste0("matrix[N", prefix, "_RE_", i, ", P", prefix, "_RE_", i, "]"),
+        paste0("M_beta_", prefix, "_RE_", i))
     )
   }
   lines
@@ -296,25 +351,26 @@ stan_functions_block <- function(ctx) {
 #' @noRd
 stan_data_block <- function(ctx) {
   mx <- ctx$SZDG_max
+  ns <- ctx$new_syntax
   lines <- c(
     "data {",
     "    int<lower=0> N; // number of observations",
     "    int<lower=0> PS; // number of predictors for principal stratum model",
     "    int<lower=0> PG; // number of predictors for outcome model",
-    paste0("    int<lower=0, upper=", mx[2], "> Z[N]; // treatment arm"),
-    paste0("    int<lower=0, upper=", mx[3], "> D[N]; // post randomization confounding variable")
+    stan_array_decl(ns, "    ", "N", paste0("int<lower=0, upper=", mx[2], ">"), "Z", "// treatment arm"),
+    stan_array_decl(ns, "    ", "N", paste0("int<lower=0, upper=", mx[3], ">"), "D", "// post randomization confounding variable")
   )
 
   Y_lines <- switch(ctx$Y_type,
-    "real"     = "    real Y[N]; // real outcome",
-    "positive" = "    real<lower=0> Y[N]; // positive outcome",
-    "binary"   = "    int<lower=0, upper=1> Y[N]; // binary outcome",
-    "count"    = "    int<lower=0> Y[N]; // count outcome",
+    "real"     = stan_array_decl(ns, "    ", "N", "real", "Y", "// real outcome"),
+    "positive" = stan_array_decl(ns, "    ", "N", "real<lower=0>", "Y", "// positive outcome"),
+    "binary"   = stan_array_decl(ns, "    ", "N", "int<lower=0, upper=1>", "Y", "// binary outcome"),
+    "count"    = stan_array_decl(ns, "    ", "N", "int<lower=0>", "Y", "// count outcome"),
     "survival" = c(
-      "    real<lower=0> Y[N]; // survival outcome",
-      "    int<lower=0, upper=1> delta[N]; // event indicator",
+      stan_array_decl(ns, "    ", "N", "real<lower=0>", "Y", "// survival outcome"),
+      stan_array_decl(ns, "    ", "N", "int<lower=0, upper=1>", "delta", "// event indicator"),
       "    int<lower=0> T; // number of time points for evaluation",
-      "    real<lower=0> time[T]; // time points"
+      stan_array_decl(ns, "    ", "T", "real<lower=0>", "time", "// time points")
     )
   )
 
@@ -334,7 +390,7 @@ stan_transformed_data_block <- function(ctx) {
 
   lines <- c(
     "transformed data {",
-    paste0("    int S[", mx[4], "];")
+    stan_array_decl(ctx$new_syntax, "    ", mx[4], "int", "S")
   )
   for (i in seq_len(nrow(SG_table))) {
     lines <- c(lines,
@@ -347,18 +403,19 @@ stan_transformed_data_block <- function(ctx) {
 #' @noRd
 stan_parameters_block <- function(ctx) {
   mx <- ctx$SZDG_max
+  ns <- ctx$new_syntax
   lines <- c(
     "parameters {",
     paste0("    matrix[", mx['S'], ", PS] beta_S; // coefficients for principal stratum model"),
     paste0("    matrix[", mx['G'], ", PG] beta_G; // coefficients for outcome model"),
-    stan_re_param_lines("S", mx['S'], ctx$S_re),
-    stan_re_param_lines("G", mx['G'], ctx$Y_re)
+    stan_re_param_lines("S", mx['S'], ctx$S_re, ns),
+    stan_re_param_lines("G", mx['G'], ctx$Y_re, ns)
   )
 
   for (param in ctx$parameter_list) {
-    constraint <- if (param$type == "positive") "<lower=0> " else " "
+    base_type <- if (param$type == "positive") "real<lower=0>" else "real"
     lines <- c(lines,
-      paste0("    real", constraint, param$name, "[", mx['G'], "];")
+      stan_array_decl(ns, "    ", mx['G'], base_type, param$name)
     )
   }
 
@@ -370,8 +427,8 @@ stan_transformed_parameters_block <- function(ctx) {
   mx <- ctx$SZDG_max
   c(
     "transformed parameters {",
-    stan_re_transformed_decl("S", mx['S'], ctx$S_re),
-    stan_re_transformed_decl("G", mx['G'], ctx$Y_re),
+    stan_re_transformed_decl("S", mx['S'], ctx$S_re, ctx$new_syntax),
+    stan_re_transformed_decl("G", mx['G'], ctx$Y_re, ctx$new_syntax),
     stan_re_transformed_body("S", ctx$S_re, mx['S'], mx['S']),
     stan_re_transformed_body("G", ctx$Y_re, mx['S'], mx['G']),
     "}"
@@ -440,7 +497,7 @@ stan_likelihood_lines <- function(ctx) {
   lines <- c(
     "    for (n in 1:N) {",
     "        int length;",
-    paste0("        real log_prob[", mx['S'] + 1, "];"),
+    stan_array_decl(ctx$new_syntax, "        ", mx['S'] + 1, "real", "log_prob"),
     "        log_prob[1] = 0;",
     paste0("        for (s in 2:", mx['S'] + 1, ") {"),
     paste0("            log_prob[s] = XS[n] * beta_S[s-1]'", S_re_term, ";"),
@@ -460,10 +517,12 @@ stan_likelihood_lines <- function(ctx) {
     )
     b_else <- TRUE
   }
+  # Guard: unrecognized (Z, D) combination — skip this observation
+  lines <- c(lines, "        else length = 0;")
 
   lines <- c(lines,
-    "        {",
-    "            real log_l[length];"
+    "        if (length > 0) {",
+    stan_array_decl(ctx$new_syntax, "            ", "length", "real", "log_l")
   )
 
   # likelihood computation block
@@ -573,8 +632,8 @@ stan_gq_survival <- function(ctx, mx) {
     paste0("        matrix[N, ", mx['S'] + 1, "] log_prob;"),
     paste0("        matrix[", mx['G'], ", T] numer_surv_prob;"),
     paste0("        matrix[", mx['G'], ", T] numer_RACE;"),
-    paste0("        matrix[N, T] expected_surv_prob[", mx['G'], "];"),
-    paste0("        matrix[N, T] expected_RACE[", mx['G'], "];"),
+    stan_array_decl(ctx$new_syntax, "        ", mx['G'], "matrix[N, T]", "expected_surv_prob"),
+    stan_array_decl(ctx$new_syntax, "        ", mx['G'], "matrix[N, T]", "expected_RACE"),
     "        for (i in 1:N)",
     paste0("            for (j in 1:", mx['G'], ")"),
     "                for (t in 1:T) {",

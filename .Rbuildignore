@@ -6,3 +6,6 @@
 ^CLAUDE\.md$
 ^R_backup$
 ^.*conflicted copy.*$
+^\.git$
+^\.\.Rcheck$
+^data-raw$

@@ -1,30 +1,30 @@
 Package: PStrata
 Type: Package
 Title: Principal Stratification Analysis in R
-Version: 0.1.0
-Date: 2026-03-07
+Version: 1.0.2
+Date: 2026-05-17
 Encoding: UTF-8
-Authors@R:
-  c(
+Authors@R: c(
     person(given = "Bo", family = "Liu", role = c("aut", "cre"), email = "bo.liu1997@gmail.com"),
-    person(given = "Fan", family = "Li", role = "ctb", email = "fl35@duke.edu")
-  )
+    person(given = "Fan", family = "Li", role = "ctb", email = "fl35@duke.edu"))
+Author: Bo Liu [aut, cre], Fan Li [ctb]
 Maintainer: Bo Liu <bo.liu1997@gmail.com>
 Description: Estimating causal effects in the presence of post-treatment confounding
     using principal stratification. 'PStrata' allows for customized monotonicity
     assumptions and exclusion restriction assumptions, with automatic full Bayesian
-    inference supported by 'Stan'. The main function to use in this package is
-    PStrata(), which provides posterior estimates of principal causal effects with
-    uncertainty quantification. Visualization tools are also provided for diagnosis
-    and interpretation. See Liu and Li (2023) <doi:10.48550/arXiv.2304.02740> for details.
+    inference supported by 'Stan'. The main workflow is PStrataModel() to specify the
+    model, fit() to run MCMC sampling, estimate() to extract potential outcomes, and
+    contrast() to compute causal effects. Visualization tools are provided for
+    diagnosis and interpretation. See Liu and Li (2023)
+    <doi:10.48550/arXiv.2304.02740> for details.
 URL: https://github.com/LauBok/PStrata
 BugReports: https://github.com/LauBok/PStrata/issues
 Depends: R (>= 3.5.0)
-Collate: PStrata-package.R utils.R PSFormula.R PStrataInfo.R survival.R prior.R
-         make_standata.R PSObject.R make_stancode.R PSSample.R PStrata.R PSOutcome.R
-         sim_data_normal.R sim_data_Cox.R PSContrast.R
+Collate: PStrata-package.R utils.R survival.R prior.R
+         make_stancode.R sim_data_normal.R sim_data_Cox.R
+         PStrataModel.R fit.R estimate.R contrast.R
 License: GPL (>= 2)
 Suggests: R.rsp
-Imports: ggplot2, rstan, lme4, abind, dplyr, purrr, stringr, stats
+Imports: ggplot2, rstan, lme4, reformulas, purrr, stringr, stats
 LazyData: true
 RoxygenNote: 7.3.3

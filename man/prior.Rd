@@ -14,7 +14,7 @@
 \alias{prior_gamma}
 \alias{prior_inv_gamma}
 \alias{prior_weibull}
-\title{Prior functions}
+\title{Prior Distribution Functions}
 \usage{
 prior_flat()
 
@@ -54,4 +54,12 @@ A list, including the following items.
 }
 \description{
 Define prior functions used in \code{PStrata}.
+}
+\examples{
+prior_flat()
+prior_normal(0, 10)
+prior_t(0, 2.5, df = 3)
+prior_cauchy(0, 5)
+prior_inv_gamma(2, 1)
+
 }

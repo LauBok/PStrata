@@ -39,4 +39,9 @@ Weibull-Cox distribution
 The exclusion restriction assumption holds for never-takers in this
 generated dataset.
 }
+\examples{
+data(sim_data_Cox)
+head(sim_data_Cox)
+table(sim_data_Cox$D, sim_data_Cox$Z)
+}
 \keyword{datasets}

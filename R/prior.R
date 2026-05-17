@@ -1,4 +1,4 @@
-#' Prior functions
+#' Prior Distribution Functions
 #'
 #' Define prior functions used in \code{PStrata}.
 #'
@@ -11,6 +11,13 @@
 #' \item{args}{a named list of all the input parameters}
 #' \item{call}{a function call object of the prior distribution on the parameters}
 #' }
+#'
+#' @examples
+#' prior_flat()
+#' prior_normal(0, 10)
+#' prior_t(0, 2.5, df = 3)
+#' prior_cauchy(0, 5)
+#' prior_inv_gamma(2, 1)
 #'
 #' @name prior
 #' @rdname prior

@@ -29,4 +29,8 @@
 #'   \item{delta}{Event indicator. 1 means true outcome is observed; 0 means otherwise}
 #'   \item{Y}{The observed event time or censor time}
 #' }
+#' @examples
+#' data(sim_data_Cox)
+#' head(sim_data_Cox)
+#' table(sim_data_Cox$D, sim_data_Cox$Z)
 "sim_data_Cox"

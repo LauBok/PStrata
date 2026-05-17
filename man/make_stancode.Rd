@@ -2,22 +2,39 @@
 % Please edit documentation in R/make_stancode.R
 \name{make_stancode}
 \alias{make_stancode}
-\title{\bold{Stan} Code for \pkg{PStrata} Models}
+\title{Stan Code for PStrata Models}
 \usage{
-make_stancode(PSobject, filename = NULL, debug = FALSE)
+make_stancode(object, filename = NULL, debug = FALSE)
 }
 \arguments{
-\item{PSobject}{an object of class \code{PSobject}}
+\item{object}{An internal model specification object.}
 
-\item{filename}{(optional) string. If not \code{NULL}, the stan file will be saved via
-\code{\link{cat}} in a text file named after the string supplied.}
+\item{filename}{(optional) string. If not \code{NULL}, the
+Stan file is saved to this path.}
 
-\item{debug}{only for testing in development mode. Will be removed in future release.}
+\item{debug}{only for development/testing use.}
 }
 \value{
-A string, which can be printed on screen using \code{\link{cat}}.
+A string containing the Stan program.
 }
 \description{
-Generate the \bold{Stan} code corresponding to the model,
-which is read by \bold{Stan} to do sampling.
+Generate the Stan code corresponding to the model.
+This is called internally by \code{\link{fit}}; use
+\code{\link{stancode.PStrataFit}} to retrieve the code
+from a fitted model.
+}
+\examples{
+\donttest{
+data(sim_data_normal)
+model <- PStrataModel(
+  S.formula = Z + D ~ 1,
+  Y.formula = Y ~ 1,
+  Y.family  = gaussian(),
+  strata    = c(n = "00", c = "01", a = "11"),
+  ER        = c("n", "a")
+)
+ps_fit <- fit(model, data = sim_data_normal, chains = 2, iter = 500)
+cat(ps_fit$stancode)
+}
+
 }
